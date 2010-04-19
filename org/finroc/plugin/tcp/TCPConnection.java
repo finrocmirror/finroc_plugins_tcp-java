@@ -73,7 +73,7 @@ import org.finroc.core.thread.CoreLoopThreadBase;
 public abstract class TCPConnection implements UpdateTimeChangeListener {
 
     /** Network Socket used for accessing remote Server */
-            protected NetSocket socket;
+          protected NetSocket socket;
 
     /** Output Stream for sending data to remote Server */
     protected @SharedPtr CoreOutput cos;
