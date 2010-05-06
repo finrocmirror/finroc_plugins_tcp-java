@@ -25,6 +25,7 @@ import org.finroc.jc.ArrayWrapper;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.SizeT;
 import org.finroc.jc.container.SafeConcurrentlyIterableList;
+import org.finroc.jc.container.SimpleList;
 import org.finroc.jc.net.IPSocketAddress;
 import org.finroc.core.ChildIterator;
 import org.finroc.core.CoreFlags;
@@ -278,6 +279,48 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
             if (tc != null) {
                 tc.notifyWriter();
             }
+        }
+    }
+
+    @Override
+    public float getConnectionQuality() {
+        float worst = 1.0f;
+        ChildIterator ci = new ChildIterator(this);
+        for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
+            if (fe == server) {
+                continue;
+            }
+            RemoteServer rs = (RemoteServer)fe;
+            worst = Math.min(worst, rs.getConnectionQuality());
+        }
+        return worst;
+    }
+
+    @Override
+    public String getStatus(boolean detailed) {
+        String s = super.getConnectionAddress();
+        if (!detailed) {
+            return s;
+        } else {
+            SimpleList<String> addStuff = new SimpleList<String>();
+            ChildIterator ci = new ChildIterator(this);
+            for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
+                if (fe == server) {
+                    continue;
+                }
+                RemoteServer rs = (RemoteServer)fe;
+                String tmp = rs.getPartnerAddress().toString();
+                if (tmp.equals(s)) {
+                    addStuff.insert(0, rs.getPingString());
+                } else {
+                    addStuff.add(rs.getPartnerAddress().toString() + " " + rs.getPingString());
+                }
+            }
+            for (int i = 0; i < addStuff.size(); i++) {
+                s += (i == 0) ? " (" : "; ";
+                s += addStuff.get(i);
+            }
+            return s + ")";
         }
     }
 }

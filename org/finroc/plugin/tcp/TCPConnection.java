@@ -29,6 +29,7 @@ import java.net.SocketException;
 import org.finroc.jc.ArrayWrapper;
 import org.finroc.jc.AtomicDoubleInt;
 import org.finroc.jc.HasDestructor;
+import org.finroc.jc.Time;
 import org.finroc.jc.annotation.AtFront;
 import org.finroc.jc.annotation.Const;
 import org.finroc.jc.annotation.Friend;
@@ -126,6 +127,12 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
 
     /** Last version of peer information that was sent to connection partner */
     protected int lastPeerInfoSentRevision = -1;
+
+    /** Rx related: last time RX was retrieved */
+    protected long lastRxTimestamp = 0;
+
+    /** Rx related: last time RX was retrieved: how much have we received in total? */
+    protected long lastRxPosition = 0;
 
     /**
      * @param type Connection type
@@ -464,6 +471,12 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
                     // send data
                     tc.releaseAllLocks();
                     boolean requestAcknowledgement = sendData(startTime);
+                    if (!requestAcknowledgement && lastAcknowledgedPacket == curPacketIndex) {
+                        requestAcknowledgement = Time.getCoarse() > sentPacketTime[lastAcknowledgedPacket & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS] + 1000;
+                        /*if (requestAcknowledgement) {
+                            System.out.println("requesting ack - because we haven't done that for a long time " + Time.getCoarse());
+                        }*/
+                    }
 
                     if (requestAcknowledgement) {
                         cos.writeByte(TCP.PING);
@@ -652,6 +665,24 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
             result += pingTimes[i];
         }
         return result / pingTimes.length;
+    }
+
+    /**
+     * @return Is critical ping time currently exceeded (possibly temporary disconnect)
+     */
+    public boolean pingTimeExceeed() {
+        @InCpp("::std::tr1::shared_ptr<Writer> lockedWriter = writer._lock();")
+        @SharedPtr Writer lockedWriter = writer;
+        if (lockedWriter == null) {
+            return false;
+        }
+        if (lastAcknowledgedPacket != lockedWriter.curPacketIndex) {
+            long criticalPacketTime = sentPacketTime[(lastAcknowledgedPacket + 1) & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS];
+            long timeLeft = criticalPacketTime + TCPSettings.criticalPingThreshold.get() - System.currentTimeMillis();
+            return timeLeft < 0;
+        } else {
+            return false;
+        }
     }
 
     public void writeTimestamp(long timeStamp) throws Exception {
@@ -942,4 +973,24 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
      * @param portIndex Port index as received from network stream
      */
     protected abstract TCPPort lookupPortForCallHandling(int portIndex);
+
+    /**
+     * @return Data rate of bytes read from network (in bytes/s)
+     */
+    public int getRx() {
+        long lastTime = lastRxTimestamp;
+        long lastPos = lastRxPosition;
+        lastRxTimestamp = Time.getCoarse();
+        lastRxPosition = cis.getAbsoluteReadPosition();
+        if (lastTime == 0) {
+            return 0;
+        }
+        if (lastRxTimestamp == lastTime) {
+            return 0;
+        }
+
+        double data = lastRxPosition - lastPos;
+        double interval = (lastRxTimestamp - lastTime) / 1000;
+        return (int)(data / interval);
+    }
 }

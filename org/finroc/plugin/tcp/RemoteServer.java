@@ -1125,4 +1125,69 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
     public IPSocketAddress getPartnerAddress() {
         return address;
     }
+
+    /**
+     * @return Connection quality (see ExternalConnection)
+     */
+    public synchronized float getConnectionQuality() {
+        if (bulk == null && express == null) {
+            return 0;
+        }
+        float pingTime = 0;
+        for (int i = 0; i < 2; i++) {
+            Connection c = (i == 0) ? bulk : express;
+            if (c != null) {
+                if (c.pingTimeExceeed()) {
+                    return 0;
+                }
+                pingTime = Math.max(pingTime, c.getAvgPingTime());
+            }
+        }
+        if (pingTime < 300) {
+            return 1;
+        } else if (pingTime > 1300) {
+            return 0;
+        } else {
+            return ((float)pingTime - 300.0f) / 1000.0f;
+        }
+    }
+
+    /**
+     * @return String containing ping times
+     */
+    public synchronized String getPingString() {
+        int pingAvg = 0;
+        int pingMax = 0;
+        int dataRate = 0;
+        String s = "ping (avg/max/Rx): ";
+        if (bulk == null && express == null) {
+            return s + "- ";
+        }
+        for (int i = 0; i < 2; i++) {
+            Connection c = (i == 0) ? bulk : express;
+            if (c != null) {
+                if (c.pingTimeExceeed()) {
+                    return s + "- ";
+                }
+                pingAvg = Math.max(pingAvg, c.getAvgPingTime());
+                pingMax = Math.max(pingMax, c.getMaxPingTime());
+                dataRate += c.getRx();
+            }
+        }
+        return s + pingAvg + "ms/" + pingMax + "ms/" + formatRate(dataRate);
+    }
+
+    /**
+     * @param dataRate Data Rate
+     * @return Formatted Data Rate
+     */
+    private static String formatRate(int dataRate) {
+        if (dataRate < 1000) {
+            return "" + dataRate;
+        } else if (dataRate < 10000000) {
+            return (dataRate / 1000) + "k";
+        } else {
+            return (dataRate / 1000000) + "M";
+        }
+    }
 }
