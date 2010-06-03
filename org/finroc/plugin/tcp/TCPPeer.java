@@ -22,6 +22,7 @@
 package org.finroc.plugin.tcp;
 
 import org.finroc.jc.ArrayWrapper;
+import org.finroc.jc.annotation.InCppFile;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.SizeT;
 import org.finroc.jc.container.SafeConcurrentlyIterableList;
@@ -107,12 +108,6 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
 
     }
 
-    /*Cpp
-    virtual ~TCPPeer() {
-        delete tracker;
-    }
-     */
-
     /**
      * @return Does peer provide a server for connecting?
      */
@@ -139,12 +134,21 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     public void connect() throws Exception {
         assert(isReady());
         connectImpl(networkName, false);
+        postConnect(networkName);
     }
 
     @Override
     protected synchronized void prepareDelete() {
         if (isServer() && tracker != null) {
             tracker.unregisterServer(networkName, name);
+        }
+        try {
+            disconnect();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        if (tracker != null) {
+            tracker.delete();
         }
     }
 
@@ -160,9 +164,9 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     }
 
     @Override
-    public synchronized void nodeRemoved(IPSocketAddress isa, String name) {
+    public synchronized Object nodeRemoved(IPSocketAddress isa, String name) {
         if (getFlag(CoreFlags.DELETED)) {
-            return;
+            return null;
         }
 
         // remove port & disconnect
@@ -172,12 +176,19 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
                 continue;
             }
             RemoteServer rs = (RemoteServer)fe;
-            if (rs.getPartnerAddress().equals(isa)) {
-                rs.managedDelete();
-                return;
+            if (rs.getPartnerAddress().equals(isa) && (!rs.deletedSoon()) && (!rs.isDeleted())) {
+                rs.earlyDeletingPreparations();
+                return rs;
             }
         }
         System.out.println("TCPClient warning: Node " + name + " not found");
+        return null;
+    }
+
+    @Override
+    @InCppFile
+    public void nodeRemovedPostLockProcess(Object obj) {
+        ((RemoteServer)obj).managedDelete();
     }
 
     @Override
@@ -191,8 +202,13 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
             ci.reset();
             FrameworkElement fe = null;
             while ((fe = ci.next()) != null) {
-                if (fe.isReady() && (fe instanceof RemoteServer)) {
-                    ((RemoteServer)fe).reconnect();
+                if (fe instanceof RemoteServer) {
+                    RemoteServer rs = (RemoteServer)fe;
+                    synchronized (rs) {
+                        if (rs.isReady() && (!rs.deletedSoon())) {
+                            rs.reconnect();
+                        }
+                    }
                 }
             }
 
@@ -243,7 +259,12 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
         FrameworkElement fe = null;
         while ((fe = ci.next()) != null) {
             if (fe.isReady() && (fe instanceof RemoteServer)) {
-                ((RemoteServer)fe).temporaryDisconnect();
+                RemoteServer rs = (RemoteServer)fe;
+                synchronized (rs) {
+                    if (rs.isReady() && (!rs.deletedSoon())) {
+                        rs.temporaryDisconnect();
+                    }
+                }
             }
         }
     }
@@ -291,7 +312,9 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
                 continue;
             }
             RemoteServer rs = (RemoteServer)fe;
-            worst = Math.min(worst, rs.getConnectionQuality());
+            if (rs.isReady() && (!rs.deletedSoon())) {
+                worst = Math.min(worst, rs.getConnectionQuality());
+            }
         }
         return worst;
     }
@@ -305,10 +328,13 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
             SimpleList<String> addStuff = new SimpleList<String>();
             ChildIterator ci = new ChildIterator(this);
             for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
-                if (fe == server) {
+                if (fe == server || (!fe.isReady())) {
                     continue;
                 }
                 RemoteServer rs = (RemoteServer)fe;
+                if (rs.deletedSoon()) {
+                    continue;
+                }
                 String tmp = rs.getPartnerAddress().toString();
                 if (tmp.equals(s)) {
                     addStuff.insert(0, rs.getPingString());
@@ -316,7 +342,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
                     addStuff.add(rs.getPartnerAddress().toString() + " " + rs.getPingString());
                 }
             }
-            for (int i = 0; i < addStuff.size(); i++) {
+            for (@SizeT int i = 0; i < addStuff.size(); i++) {
                 s += (i == 0) ? " (" : "; ";
                 s += addStuff.get(i);
             }

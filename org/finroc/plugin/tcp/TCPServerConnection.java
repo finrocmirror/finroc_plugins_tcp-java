@@ -23,6 +23,7 @@ package org.finroc.plugin.tcp;
 
 import org.finroc.jc.ArrayWrapper;
 import org.finroc.jc.AtomicInt;
+import org.finroc.jc.MutexLockOrder;
 import org.finroc.jc.Time;
 import org.finroc.jc.annotation.Friend;
 import org.finroc.jc.annotation.PassByValue;
@@ -38,6 +39,7 @@ import org.finroc.core.ChildIterator;
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElementTreeFilter;
+import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.RuntimeListener;
 import org.finroc.core.buffer.CoreInput;
@@ -57,6 +59,8 @@ import org.finroc.core.thread.CoreLoopThreadBase;
  *
  * (memory management: Should be created with new - deletes itself:
  *  Port set, as well as reader and writer threads hold shared_ptr to this connection object)
+ *
+ * Thread-safety: Reader thread is the only one that deletes ports while operating. So it can use them without lock.
  */
 public final class TCPServerConnection extends TCPConnection implements RuntimeListener, FrameworkElementTreeFilter.Callback {
 
@@ -96,6 +100,9 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     /** Temporary string builder - only used by reader thread */
     private StringBuilder tmp = new StringBuilder();
 
+    /** Number of times disconnect was called, since last connect */
+    private final AtomicInt disconnectCalls = new AtomicInt(0);
+
     /**
      * @param s Socket with new connection
      * @param streamId Stream ID for connection type (see TCP class)
@@ -105,57 +112,71 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         super(streamId, streamId == TCP.TCP_P2P_ID_BULK ? peer : null, streamId == TCP.TCP_P2P_ID_BULK);
         socket = s;
 
-        // initialize core streams (counter part to RemoteServer.Connection constructor)
-        @SharedPtr LargeIntermediateStreamBuffer lmBuf = new LargeIntermediateStreamBuffer(s.getSink());
-        cos = new CoreOutput(lmBuf);
-        //cos = new CoreOutputStream(new BufferedOutputStreamMod(s.getOutputStream()));
-        cos.writeLong(RuntimeEnvironment.getInstance().getCreationTime()); // write base timestamp
-        RemoteTypes.serializeLocalDataTypes(DataTypeRegister.getInstance(), cos);
-        cos.flush();
+        synchronized (this) {
 
-        // init port set here, since it might be serialized to stream
-        portSet = new PortSet(server, this);
-        portSet.init();
-
-        cis = new CoreInput(s.getSource());
-        cis.setTypeTranslation(updateTimes);
-        updateTimes.deserialize(cis);
-
-        String typeString = getConnectionTypeString();
-
-        // send runtime information?
-        if (cis.readBoolean()) {
-            elementFilter.deserialize(cis);
-            sendRuntimeInfo = true;
-            synchronized (RuntimeEnvironment.getInstance()) {
-                RuntimeEnvironment.getInstance().addListener(this);
-                elementFilter.traverseElementTree(RuntimeEnvironment.getInstance(), this, tmp);
-            }
-            cos.writeByte(0); // terminator
+            // initialize core streams (counter part to RemoteServer.Connection constructor)
+            @SharedPtr LargeIntermediateStreamBuffer lmBuf = new LargeIntermediateStreamBuffer(s.getSink());
+            cos = new CoreOutput(lmBuf);
+            //cos = new CoreOutputStream(new BufferedOutputStreamMod(s.getOutputStream()));
+            cos.writeLong(RuntimeEnvironment.getInstance().getCreationTime()); // write base timestamp
+            RemoteTypes.serializeLocalDataTypes(DataTypeRegister.getInstance(), cos);
             cos.flush();
+
+            // init port set here, since it might be serialized to stream
+            portSet = new PortSet(server, this);
+            portSet.init();
+
+            cis = new CoreInput(s.getSource());
+            cis.setTypeTranslation(updateTimes);
+            updateTimes.deserialize(cis);
+
+            String typeString = getConnectionTypeString();
+
+            // send runtime information?
+            if (cis.readBoolean()) {
+                elementFilter.deserialize(cis);
+                sendRuntimeInfo = true;
+                synchronized (RuntimeEnvironment.getInstance().getRegistryLock()) { // lock runtime so that we do not miss a change
+                    RuntimeEnvironment.getInstance().addListener(this);
+                    elementFilter.traverseElementTree(RuntimeEnvironment.getInstance(), this, tmp);
+                }
+                cos.writeByte(0); // terminator
+                cos.flush();
+            }
+
+            // start incoming data listener thread
+            @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Server " + typeString + "-Listener for " + s.getRemoteSocketAddress().toString()));
+            super.reader = listener;
+            listener.lockObject(portSet.connectionLock);
+            listener.start();
+
+            // start writer thread
+            @SharedPtr Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Server " + typeString + "-Writer for " + s.getRemoteSocketAddress().toString()));
+            super.writer = writer;
+            writer.lockObject(portSet.connectionLock);
+            writer.start();
+
+            connections.add(this, false);
+            PingTimeMonitor.getInstance(); // start ping time monitor
         }
-
-        // start incoming data listener thread
-        @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Server " + typeString + "-Listener for " + s.getRemoteSocketAddress().toString()));
-        listener.lockObject(portSet.connectionLock);
-        listener.start();
-
-        // start writer thread
-        @SharedPtr Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Server " + typeString + "-Writer for " + s.getRemoteSocketAddress().toString()));
-        super.writer = writer;
-        writer.lockObject(portSet.connectionLock);
-        writer.start();
-
-        connections.add(this, false);
-        PingTimeMonitor.getInstance(); // start ping time monitor
     }
 
     @Override
-    public synchronized void handleDisconnect() {
-        disconnect();
+    public void handleDisconnect() {
+
+        // make sure that disconnect is only called once... prevents deadlocks cleaning up all the threads
+        int calls = disconnectCalls.incrementAndGet();
+        if (calls > 1) {
+            return;
+        }
+
         synchronized (portSet) {
-            if (!portSet.isDeleted()) {
-                portSet.managedDelete();
+            boolean portSetDeleted = portSet.isDeleted();
+            synchronized (this) {
+                disconnect();
+                if (!portSetDeleted) {
+                    portSet.managedDelete();
+                }
             }
         }
     }
@@ -173,52 +194,6 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
 
         switch (opCode) {
 
-//      case TCP.PULLCALL: // Pull data request - server side
-//
-//
-//
-//          handle = cis.readInt();
-//          cis.readSkipOffset();
-//          p = getPort(handle, true);
-//
-//          handlePullCall(p, handle, portSet);
-//          break;
-
-//      case TCP.METHODCALL:
-//
-//          handle = cis.readInt();
-//          cis.readSkipOffset();
-//          p = getPort(handle, true);
-//
-//          // okay... this is handled asynchronously now
-//          // create/decode call
-//          // okay... this is handled asynchronously now
-//          // create/decode call
-//          cis.setBufferSource(p.getPort());
-//          // lookup method type
-//          DataType methodType = cis.readType();
-//          if (methodType == null || (!methodType.isMethodType())) {
-//              cis.toSkipTarget();
-//          } else {
-//              mc = ThreadLocalCache.getFast().getUnusedMethodCall();
-//              mc.deserializeCall(cis, methodType);
-//
-//              // process call
-//              if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-//                  System.out.println("Incoming Server Command: Method call " + (p != null ? p.getPort().getQualifiedName() : handle));
-//              }
-//              if (p == null) {
-//                  mc.setExceptionStatus(MethodCallException.Type.NO_CONNECTION);
-//                  sendCall(mc);
-//              } else {
-//                  NetPort.InterfaceNetPortImpl inp = (NetPort.InterfaceNetPortImpl)p.getPort();
-//                  inp.processCallFromNet(mc);
-//              }
-//          }
-//          cis.setBufferSource(null);
-//
-//          break;
-
         case TCP.SET: // Set data command
 
             handle = cis.readInt();
@@ -230,10 +205,16 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
                 System.out.println("Incoming Server Command: Set " + (p != null ? p.localPort.getQualifiedName() : handle));
             }
             if (p != null) {
-                byte changedFlag = cis.readByte();
-                cis.setBufferSource(p.getPort());
-                p.receiveDataFromStream(cis, System.currentTimeMillis(), changedFlag);
-                cis.setBufferSource(null);
+                synchronized (p.getPort()) {
+                    if (!p.getPort().isReady()) {
+                        cis.toSkipTarget();
+                    } else {
+                        byte changedFlag = cis.readByte();
+                        cis.setBufferSource(p.getPort());
+                        p.receiveDataFromStream(cis, System.currentTimeMillis(), changedFlag);
+                        cis.setBufferSource(null);
+                    }
+                }
             } else {
                 cis.toSkipTarget();
             }
@@ -246,7 +227,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
                 System.out.println("Incoming Server Command: Unsubscribe " + (p != null ? p.localPort.getQualifiedName() : handle));
             }
-            if (p != null) { // complete disconnect
+            if (p != null && p.getPort().isReady()) { // complete disconnect
                 p.managedDelete();
             }
             break;
@@ -266,32 +247,27 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
                 System.out.println("Incoming Server Command: Subscribe " + (p != null ? p.localPort.getQualifiedName() : handle) + " " + strategy + " " + reversePush + " " + updateInterval + " " + remoteHandle);
             }
             if (p != null) {
-                p.getPort().setMinNetUpdateInterval(updateInterval);
-                p.updateIntervalPartner = updateInterval;
-                p.setRemoteHandle(remoteHandle);
-                p.getPort().setReversePushStrategy(reversePush);
-                p.propagateStrategyFromTheNet(strategy);
+                synchronized (p.getPort().getRegistryLock()) {
+                    if (p.getPort().isReady()) {
+                        p.getPort().setMinNetUpdateInterval(updateInterval);
+                        p.updateIntervalPartner = updateInterval;
+                        p.setRemoteHandle(remoteHandle);
+                        p.getPort().setReversePushStrategy(reversePush);
+                        p.propagateStrategyFromTheNet(strategy);
+                    }
+                }
             }
             break;
-
-//      case TCP.REQUEST_PORT_UPDATE:
-//
-//          elementFilter.deserialize(cis);
-//          sendRuntimeInfo = true;
-//          synchronized(RuntimeEnvironment.getInstance()) {
-//              RuntimeEnvironment.getInstance().addListener(this);
-//              elementFilter.traverseElementTree(RuntimeEnvironment.getInstance(), this, tmp);
-//          }
-//          cos.writeByte(0); // terminator
-//          cos.flush();
         }
     }
 
     @Override
     public void treeFilterCallback(FrameworkElement fe) {
         if (fe != RuntimeEnvironment.getInstance()) {
-            cos.writeByte(TCP.PORT_UPDATE);
-            FrameworkElementInfo.serializeFrameworkElement(fe, RuntimeListener.ADD, cos, elementFilter, tmp);
+            if (!fe.isDeleted()) {
+                cos.writeByte(TCP.PORT_UPDATE);
+                FrameworkElementInfo.serializeFrameworkElement(fe, RuntimeListener.ADD, cos, elementFilter, tmp);
+            }
         }
     }
 
@@ -359,13 +335,14 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         private final @SharedPtr TCPServerConnection connectionLock;
 
         public PortSet(TCPServer server, @SharedPtr TCPServerConnection connectionLock) {
-            super("connection" + connectionId.getAndIncrement(), server, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT); // manages ports itself
+            super("connection" + connectionId.getAndIncrement(), server, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT, LockOrderLevels.PORT - 1); // manages ports itself
             portIterator = new ChildIterator(this);
             this.connectionLock = connectionLock;
         }
 
         @Override
         protected void prepareDelete() {
+            handleDisconnect();
             if (sendRuntimeInfo) {
                 RuntimeEnvironment.getInstance().removeListener(TCPServerConnection.this);
             }
@@ -503,6 +480,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         }
         pci.flags = flags;
         pci.dataType = counterPart.getDataType();
+        pci.lockOrder = LockOrderLevels.REMOTE_PORT;
         return pci;
     }
 
@@ -513,6 +491,10 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     public static class PingTimeMonitor extends CoreLoopThreadBase {
 
         @SharedPtr private static PingTimeMonitor instance;
+
+        /** Locked before thread list (in C++) */
+        @SuppressWarnings("unused")
+        private static final MutexLockOrder staticClassMutex = new MutexLockOrder(LockOrderLevels.INNER_MOST - 20);
 
         private PingTimeMonitor() {
             super(TCPSettings.CONNECTOR_THREAD_LOOP_INTERVAL, false, false);
@@ -538,7 +520,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             for (int i = 0, n = connections.size(); i < n; i++) {
                 TCPServerConnection tsc = it.get(i);
                 if (tsc != null) {
-                    mayWait = Math.min(mayWait, tsc.checkPingForDisconnect());
+                    mayWait = Math.min(mayWait, tsc.checkPingForDisconnect()); // safe, since connection is deleted deferred and call time is minimal
                 }
             }
 

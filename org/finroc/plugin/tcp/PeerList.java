@@ -21,12 +21,19 @@
  */
 package org.finroc.plugin.tcp;
 
+import org.finroc.jc.MutexLockOrder;
+import org.finroc.jc.annotation.Elems;
+import org.finroc.jc.annotation.Mutable;
+import org.finroc.jc.annotation.Ptr;
+import org.finroc.jc.annotation.SizeT;
 import org.finroc.jc.container.SimpleList;
 import org.finroc.jc.net.IPAddress;
 import org.finroc.jc.net.IPSocketAddress;
 import org.finroc.jc.stream.InputStreamBuffer;
 import org.finroc.jc.stream.OutputStreamBuffer;
 
+import org.finroc.core.LockOrderLevels;
+import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.port.net.AbstractPeerTracker;
 
 /**
@@ -49,8 +56,13 @@ public class PeerList extends AbstractPeerTracker {
     /** Server port of own peer */
     private final int serverPort;
 
+    /** Lock order */
+    @Mutable
+    public MutexLockOrder objMutex = new MutexLockOrder(LockOrderLevels.INNER_MOST - 200);
+
     /** @param serverPort Server port of own peer */
     public PeerList(int serverPort) {
+        super(LockOrderLevels.RUNTIME_REGISTER + 1);
         this.serverPort = serverPort;
         if (serverPort > 0) {
             addPeer(new IPSocketAddress("localhost", serverPort), false);
@@ -65,22 +77,66 @@ public class PeerList extends AbstractPeerTracker {
 //      addPeer(I)
 //  }
 
-    public synchronized void addPeer(IPSocketAddress isa, boolean notifyOnChange) {
-        if (!peers.contains(isa)) {
-            System.out.println("received new peer: " + isa.toString());
-            peers.add(isa);
-            if (notifyOnChange) {
-                notifyDiscovered(isa, isa.toString());
+    public void addPeer(IPSocketAddress isa, boolean notifyOnChange) {
+        synchronized (this) {
+            if (peers.contains(isa)) {
+                return;
             }
-            revision++;
+        }
+
+        synchronized (RuntimeEnvironment.getInstance().getRegistryLock()) {
+            boolean add = false;
+            synchronized (this) {
+                add = !peers.contains(isa);
+                if (add) {
+                    System.out.println("received new peer: " + isa.toString());
+                    peers.add(isa);
+                }
+            }
+
+            if (add) {
+                if (notifyOnChange) {
+                    notifyDiscovered(isa, isa.toString());
+                }
+                revision++;
+            }
         }
     }
 
-    public synchronized void removePeer(IPSocketAddress isa) {
-        if (peers.contains(isa)) {
-            peers.removeElem(isa);
-            notifyRemoved(isa, isa.toString());
-            revision--;
+    public void removePeer(IPSocketAddress isa) {
+
+        // make sure: peer can only be removed, while there aren't any other connection events being processed
+        SimpleList<AbstractPeerTracker.Listener> listenersCopy = new SimpleList<AbstractPeerTracker.Listener>();
+        listeners.getListenersCopy(listenersCopy);
+        SimpleList<AbstractPeerTracker.Listener> postProcess = new SimpleList<AbstractPeerTracker.Listener>();
+        @Elems(Ptr.class)
+        SimpleList<Object> postProcessObj = new SimpleList<Object>();
+        synchronized (RuntimeEnvironment.getInstance().getRegistryLock()) {
+            synchronized (this) {
+                if (peers.contains(isa)) {
+                    peers.removeElem(isa);
+                    for (@SizeT int i = 0, n = listenersCopy.size(); i < n; i++) {
+                        @Ptr Object o = listenersCopy.get(i).nodeRemoved(isa, isa.toString());
+                        if (o != null) {
+                            postProcess.add(listenersCopy.get(i));
+
+                            //JavaOnlyBlock
+                            postProcessObj.add(o);
+
+                            //Cpp postProcessObj.add(o);
+                        }
+                    }
+                    revision++;
+                }
+            }
+        }
+
+        for (@SizeT int i = 0, n = postProcess.size(); i < n; i++) {
+
+            //JavaOnlyBlock
+            postProcess.get(i).nodeRemovedPostLockProcess(postProcessObj.get(i));
+
+            //Cpp postProcess.get(i)->nodeRemovedPostLockProcess(postProcessObj.get(i));
         }
     }
 
@@ -104,7 +160,7 @@ public class PeerList extends AbstractPeerTracker {
      * @param ownAddress Our own address from remote view
      * @param partnerAddress IP address of partner
      */
-    public synchronized void deserializeAddresses(InputStreamBuffer ci, IPAddress ownAddress, IPAddress partnerAddress) {
+    public void deserializeAddresses(InputStreamBuffer ci, IPAddress ownAddress, IPAddress partnerAddress) {
         int size = ci.readInt();
         for (int i = 0; i < size; i++) {
             IPSocketAddress ia = IPSocketAddress.deserialize(ci);

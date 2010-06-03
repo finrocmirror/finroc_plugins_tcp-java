@@ -21,6 +21,7 @@
  */
 package org.finroc.plugin.tcp;
 
+import org.finroc.jc.AtomicInt;
 import org.finroc.jc.Time;
 import org.finroc.jc.annotation.AtFront;
 import org.finroc.jc.annotation.Const;
@@ -43,6 +44,7 @@ import org.finroc.jc.thread.ThreadUtil;
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElementTreeFilter;
+import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.RuntimeListener;
 import org.finroc.core.buffer.CoreInput;
@@ -62,6 +64,13 @@ import org.finroc.core.thread.CoreLoopThreadBase;
  *
  * Class that stores information about and can be used to access
  * TCP Server running in another runtime environment.
+ *
+ * Thread safety considerations:
+ *  Many Threads are operating on our objects. Before deleting connection or when disconnecting they
+ *  should all be stopped to avoid any race conditions.
+ *  Furthermore, ports may be deleted via remote Runtime changes. This can happen while other threads
+ *  are using these ports. Therefore, critical port operations should be executed in synchronized context
+ *  - as well as any deleting.
  */
 @CppInclude("rrlib/finroc_core_utils/GarbageCollector.h")
 public class RemoteServer extends FrameworkElement implements RuntimeListener {
@@ -111,6 +120,12 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
     /** If this is a port-only-client: Framework element that contains all global links */
     private final FrameworkElement globalLinks;
 
+    /** Number of times disconnect was called, since last connect */
+    private final AtomicInt disconnectCalls = new AtomicInt(0);
+
+    /** Set to true when server will soon be deleted */
+    private boolean deletedSoon = false;
+
     /**
      * @param isa Network address
      * @param name Unique server name
@@ -119,10 +134,10 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
      * @param peer Peer that this server belongs to
      */
     public RemoteServer(IPSocketAddress isa, String name, FrameworkElement parent, @Const @Ref FrameworkElementTreeFilter filter, TCPPeer peer) {
-        super(name, parent, CoreFlags.NETWORK_ELEMENT | CoreFlags.ALLOWS_CHILDREN | (filter.isPortOnlyFilter() ? 0 : CoreFlags.ALTERNATE_LINK_ROOT)); // manages ports itself
+        super(name, parent, CoreFlags.NETWORK_ELEMENT | CoreFlags.ALLOWS_CHILDREN | (filter.isPortOnlyFilter() ? 0 : CoreFlags.ALTERNATE_LINK_ROOT), LockOrderLevels.REMOTE); // manages ports itself
         this.filter = filter;
         this.peer = peer;
-        globalLinks = filter.isPortOnlyFilter() ? new FrameworkElement("global", this, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | CoreFlags.GLOBALLY_UNIQUE_LINK | CoreFlags.ALTERNATE_LINK_ROOT) : null;
+        globalLinks = filter.isPortOnlyFilter() ? new FrameworkElement("global", this, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | CoreFlags.GLOBALLY_UNIQUE_LINK | CoreFlags.ALTERNATE_LINK_ROOT, -1) : null;
         address = isa;
         RuntimeEnvironment.getInstance().addListener(this);
         connectorThread = ThreadUtil.getThreadSharedPtr(new ConnectorThread());
@@ -133,6 +148,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
      * Connect to remote server
      */
     private synchronized void connect() throws Exception {
+
+        // reset disconnect count
+        disconnectCalls.set(0);
 
         // try connecting...
         @SharedPtr NetSocket socketExpress = NetSocket.createInstance(address);
@@ -255,11 +273,13 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                     port = new ProxyPort(info);
                 } else { // refound port
                     //Cpp printf("refound network port %p %s\n", port, port->getPort()->getCDescription());
-                    port.refound = true;
-                    port.connection = (info.getFlags() & PortFlags.IS_EXPRESS_PORT) > 0 ? express : bulk;
-                    assert(port.matches(info)) : "Structure in server changed - that shouldn't happen";
-                    info.opCode = RuntimeListener.CHANGE;
-                    port.updateFromPortInfo(info);
+                    synchronized (port) {
+                        port.refound = true;
+                        port.connection = (info.getFlags() & PortFlags.IS_EXPRESS_PORT) > 0 ? express : bulk;
+                        assert(port.matches(info)) : "Structure in server changed - that shouldn't happen";
+                        info.opCode = RuntimeListener.CHANGE;
+                        port.updateFromPortInfo(info);
+                    }
                 }
             } else {
                 if (fe != null && fe.remoteHandle != info.getHandle()) { // delete old frameworkElement
@@ -267,15 +287,17 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                     fe = null;
                 }
                 if (fe == null || fe.yetUnknown) { // normal
-                    fe = (ProxyFrameworkElement)getFrameworkElement(info.getHandle(), info.getFlags());
+                    fe = (ProxyFrameworkElement)getFrameworkElement(info.getHandle(), info.getFlags(), false, info.getLink(0).parent);
                     fe.updateFromPortInfo(info);
                     //fe.yetUnknown = false;
                 } else if (fe != null) { // refound
-                    //Cpp printf("refound network framework element %p %s\n", fe, fe->getCDescription());
-                    fe.refound = true;
-                    assert(fe.matches(info)) : "Structure in server changed - that shouldn't happen";
-                    info.opCode = RuntimeListener.CHANGE;
-                    fe.updateFromPortInfo(info);
+                    synchronized (fe) {
+                        //Cpp printf("refound network framework element %p %s\n", fe, fe->getCDescription());
+                        fe.refound = true;
+                        assert(fe.matches(info)) : "Structure in server changed - that shouldn't happen";
+                        info.opCode = RuntimeListener.CHANGE;
+                        fe.updateFromPortInfo(info);
+                    }
                 }
             }
 
@@ -302,130 +324,32 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         }
     }
 
-//  @Override
-//  public synchronized boolean processPacket(TransactionPacket buffer) {
-//      if (initialPortRetrieve && (!buffer.initialPacket)) {
-//          return true;
-//      }
-//
-//      ChunkedReadView rv = buffer.getReadView(true);
-//      while(rv.hasRemaining()) {
-//          tmpInfo.deserialize(rv);
-//          if (tmpInfo.opCode == Transaction.ADD) {
-//              addOrChangePort(tmpInfo);
-//          } else {
-//              removePort(tmpInfo);
-//          }
-//      }
-//
-//      return false;
-//  }
-
-//  /**
-//   * Remove port referred to by port info (warns if non-existent)
-//   *
-//   * @param info Port info
-//   */
-//  private void removePort(@Const @Ref FrameworkElementInfo info) {
-//      ProxyPort pp = lookupPort(info);
-//      if (pp != null) {
-//          pp.updateFromPortInfo(info);
-//          portUpdated(pp, false);
-//          pp.managedDelete();
-//      } else {
-//          System.out.println("warning: RemoteServer.removePort - port " + info.getLinks().get(0) + " does not exist");
-//      }
-//  }
-//
-//  /**
-//   * Add or change port referred to by port info
-//   *
-//   * @param info Port info
-//   */
-//  private void addOrChangePort(@Const @Ref FrameworkElementInfo info) {
-//      ProxyPort pp = lookupPort(info);
-//      if (pp == null) {
-//          pp = new ProxyPort(SharedPorts.getPortPublishInfo());
-//      } else {
-//          pp.updateFromPortInfo(info);
-//      }
-//  }
-
-//  /**
-//   * Look up port referred to by port info
-//   *
-//   * @param info port info
-//   * @return Proxy port - or null if non-existent
-//   */
-//  private ProxyPort lookupPort(@Const @Ref FrameworkElementInfo info) {
-//
-//      // somewhat inefficient currently... we could add lookup table - or use links for lookup - however, this causes more memory allocation etc.
-//      tmpIterator.reset(this);
-//      for (FrameworkElement fe = tmpIterator.next(); fe != null; fe = tmpIterator.next()) {
-//          if (fe.isPort()) {
-//              AbstractPort ap = (AbstractPort)fe;
-//              if (ap.asNetPort() instanceof ProxyPort) {
-//                  ProxyPort pp = (ProxyPort)ap.asNetPort();
-//                  if (pp.getRemoteHandle() == info.getHandle()) {
-//                      return pp;
-//                  }
-//              }
-//          }
-//      }
-//      return null;
-//  }
-//
-//  /**
-//   * Called whenever a port is updated or removed - to update monitoring lists in connection threads
-//   *
-//   * @param pp Port that was updated
-//   * @param added Was Port added/modified or rather removed?
-//   */
-//  private synchronized void portUpdated(ProxyPort pp, boolean added) {
-//      AbstractPort ap = pp.getPort();
-//      Connection c = ap.getFlag(PortFlags.IS_EXPRESS_PORT) ? express : bulk;
-//      if (added && (((!ap.isOutputPort()) && ap.pushStrategy()) || (ap.isOutputPort() && ap.acceptsReverseData() && ap.reversePushStrategy()))) {
-//          if (!pp.monitored) {
-//              c.monitoredPorts.add(pp, false);
-//              c.notifyWriter();
-//              pp.monitored = true;
-//          }
-//      } else {
-//          if (pp.monitored) {
-//              c.monitoredPorts.remove(pp);
-//              c.notifyWriter();
-//              pp.monitored = false;
-//          }
-//      }
-//  }
-
-//  /**
-//   * @return Is currently connected to remote server?
-//   */
-//  public synchronized boolean isTCPConnected() {
-//      return bulk != null;
-//  }
-
     @Override
     protected synchronized void prepareDelete() {
         RuntimeEnvironment.getInstance().removeListener(this);
+        System.out.println("RemoteServer: Stopping ConnectorThread");
         connectorThread.stopThread();
-        /*try {
+        try {
             connectorThread.join();
         } catch (InterruptedException e) {
+
+            //JavaOnlyBlock
             e.printStackTrace();
-        }*/
+
+            //Cpp _printf("warning: RemoteServer::prepareDelete() - Interrupted waiting for connector thread.\n");
+        }
+        System.out.println("RemoteServer: Disconnecting");
         disconnect();
 
-        // delete all elements created by this remote server
-        portIterator.reset();
+        // delete all elements created by this remote server (should be done automatically, actually)
+        /*portIterator.reset();
         for (ProxyPort pp = portIterator.next(); pp != null; pp = portIterator.next()) {
             pp.managedDelete();
         }
         elemIterator.reset();
         for (ProxyFrameworkElement pp = elemIterator.next(); pp != null; pp = elemIterator.next()) {
             pp.managedDelete();
-        }
+        }*/
 
         super.prepareDelete();
     }
@@ -433,25 +357,34 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
     /**
      * Disconnect from remote server
      */
-    private synchronized void disconnect() {
-        if (bulk != null) {
-            bulk.disconnect();
-            bulk = null; // needed afterwards so commmented out
-        }
-        if (express != null) {
-            express.disconnect();
-            express = null; // needed afterwards so commmented out
+    private void disconnect() {
+
+        // make sure that disconnect is only called once... prevents deadlocks cleaning up all the threads
+        int calls = disconnectCalls.incrementAndGet();
+        if (calls > 1) {
+            return;
         }
 
-        // reset subscriptions
-        portIterator.reset();
-        for (ProxyPort pp = portIterator.next(); pp != null; pp = portIterator.next()) {
-            pp.reset();
+        synchronized (this) {
+            if (bulk != null) {
+                bulk.disconnect();
+                bulk = null; // needed afterwards so commmented out
+            }
+            if (express != null) {
+                express.disconnect();
+                express = null; // needed afterwards so commmented out
+            }
+
+            // reset subscriptions
+            portIterator.reset();
+            for (ProxyPort pp = portIterator.next(); pp != null; pp = portIterator.next()) {
+                pp.reset();
+            }
+            portIterator.reset();
+            //      for (ProxyPort pp = portIterator.next(); pp != null; pp = portIterator.next()) {
+            //          pp.subscriptionQueueLength = 0;
+            //      }
         }
-        portIterator.reset();
-//      for (ProxyPort pp = portIterator.next(); pp != null; pp = portIterator.next()) {
-//          pp.subscriptionQueueLength = 0;
-//      }
     }
 
     /**
@@ -460,9 +393,11 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
      *
      * @param handle Remote Handle of parent
      * @param extraFlags Any extra flags of parent to keep
+     * @param portParent Parent of a port?
+     * @param parentHandle Handle of parent (only necessary, when not unknown parent of a port)
      * @return Framework element.
      */
-    public FrameworkElement getFrameworkElement(int handle, int extraFlags) {
+    public FrameworkElement getFrameworkElement(int handle, int extraFlags, boolean portParent, int parentHandle) {
         if (handle == RuntimeEnvironment.getInstance().getHandle()) { // if parent is runtime environment - should be added as child of remote server
             return this;
         }
@@ -470,7 +405,13 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         if (pxe != null) {
             assert(pxe.remoteHandle == handle);
         } else {
-            pxe = new ProxyFrameworkElement(handle, extraFlags);
+            if (portParent) {
+                pxe = new ProxyFrameworkElement(handle, extraFlags, LockOrderLevels.PORT - 10);
+            } else {
+                FrameworkElement parent = (parentHandle == RuntimeEnvironment.getInstance().getHandle()) ? (FrameworkElement)this : (FrameworkElement)remoteElementRegister.get(-parentHandle);
+                assert(parent != null) : "Framework elements published in the wrong order - server's fault (programming error)";
+                pxe = new ProxyFrameworkElement(handle, extraFlags, parent.getLockOrder() + 1);
+            }
         }
         return pxe;
     }
@@ -493,14 +434,14 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         private boolean yetUnknown;
 
         /** Constructor for yet anonymous element */
-        public ProxyFrameworkElement(int handle, int extraFlags) {
-            super("(yet unknown)", null, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | (extraFlags & FrameworkElementInfo.PARENT_FLAGS_TO_STORE));
+        public ProxyFrameworkElement(int handle, int extraFlags, int lockOrder) {
+            super("(yet unknown)", null, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | (extraFlags & FrameworkElementInfo.PARENT_FLAGS_TO_STORE), lockOrder);
             this.remoteHandle = handle;
             remoteElementRegister.put(-remoteHandle, this);
             yetUnknown = true;
         }
 
-        public boolean matches(@Const @Ref FrameworkElementInfo info) {
+        public synchronized boolean matches(@Const @Ref FrameworkElementInfo info) {
             if (remoteHandle != info.getHandle() || info.getLinkCount() != getLinkCount()) {
                 return false;
             }
@@ -526,7 +467,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
          *
          * @param info Information
          */
-        public void updateFromPortInfo(@Const @Ref FrameworkElementInfo info) {
+        public synchronized void updateFromPortInfo(@Const @Ref FrameworkElementInfo info) {
             if (!isReady()) {
                 assert(info.opCode == RuntimeListener.ADD) : "only add operation may change framework element before initialization";
                 assert(info.getLinkCount() == 1) : "Framework elements currently may not be linked";
@@ -535,7 +476,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
 //                  pxe.link(this, info.getLinks().get(i));
 //              }
                 setDescription(info.getLink(0).name);
-                getFrameworkElement(info.getLink(0).parent, info.getLink(0).extraFlags).addChild(this);
+                getFrameworkElement(info.getLink(0).parent, info.getLink(0).extraFlags, false, info.getLink(0).parent).addChild(this);
             }
             yetUnknown = false;
         }
@@ -572,25 +513,27 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
          * @return Answer
          */
         public boolean matches(@Const @Ref FrameworkElementInfo info) {
-            if (remoteHandle != info.getHandle() || info.getLinkCount() != getPort().getLinkCount()) {
-                return false;
-            }
-            if ((getPort().getAllFlags() & CoreFlags.CONSTANT_FLAGS) != (info.getFlags() & CoreFlags.CONSTANT_FLAGS)) {
-                return false;
-            }
-            for (@SizeT int i = 0; i < info.getLinkCount(); i++) {
-                if (filter.isPortOnlyFilter()) {
-                    getPort().getQualifiedLink(tmpMatchBuffer, i);
-                } else {
-                    tmpMatchBuffer.delete(0, tmpMatchBuffer.length());
-                    tmpMatchBuffer.append(getPort().getLink(i).getDescription());
-                }
-                if (!tmpMatchBuffer.equals(info.getLink(i).name)) {
+            synchronized (getPort()) {
+                if (remoteHandle != info.getHandle() || info.getLinkCount() != getPort().getLinkCount()) {
                     return false;
                 }
-                // parents are negligible if everything else, matches
+                if ((getPort().getAllFlags() & CoreFlags.CONSTANT_FLAGS) != (info.getFlags() & CoreFlags.CONSTANT_FLAGS)) {
+                    return false;
+                }
+                for (@SizeT int i = 0; i < info.getLinkCount(); i++) {
+                    if (filter.isPortOnlyFilter()) {
+                        getPort().getQualifiedLink(tmpMatchBuffer, i);
+                    } else {
+                        tmpMatchBuffer.delete(0, tmpMatchBuffer.length());
+                        tmpMatchBuffer.append(getPort().getLink(i).getDescription());
+                    }
+                    if (!tmpMatchBuffer.equals(info.getLink(i).name)) {
+                        return false;
+                    }
+                    // parents are negligible if everything else, matches
+                }
+                return true;
             }
-            return true;
         }
 
         public void reset() {
@@ -619,33 +562,35 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
          * @param portInfo Port info
          */
         private void updateFromPortInfo(@Const @Ref FrameworkElementInfo portInfo) {
-            updateFlags(portInfo.getFlags());
-            getPort().setMinNetUpdateInterval(portInfo.getMinNetUpdateInterval());
-            updateIntervalPartner = portInfo.getMinNetUpdateInterval(); // TODO redundant?
-            propagateStrategyFromTheNet(portInfo.getStrategy());
-            if (TCPSettings.DISPLAY_INCOMING_PORT_UPDATES.get()) {
-                System.out.println("Updating port info: " + portInfo.toString());
-            }
-            if (portInfo.opCode == RuntimeListener.ADD) {
-                assert(!getPort().isReady());
-                if (filter.isPortOnlyFilter()) {
-                    for (int i = 1, n = portInfo.getLinkCount(); i < n; i++) {
-                        FrameworkElement parent = (portInfo.getLink(i).extraFlags & CoreFlags.GLOBALLY_UNIQUE_LINK) > 0 ? globalLinks : (FrameworkElement)RemoteServer.this;
-                        getPort().link(parent, portInfo.getLink(i).name);
-                    }
-                    FrameworkElement parent = (portInfo.getLink(0).extraFlags & CoreFlags.GLOBALLY_UNIQUE_LINK) > 0 ? globalLinks : (FrameworkElement)RemoteServer.this;
-                    getPort().setDescription(portInfo.getLink(0).name);
-                    parent.addChild(getPort());
-                } else {
-                    for (@SizeT int i = 1; i < portInfo.getLinkCount(); i++) {
-                        FrameworkElement parent = getFrameworkElement(portInfo.getLink(i).parent, portInfo.getLink(i).extraFlags);
-                        getPort().link(parent, portInfo.getLink(i).name);
-                    }
-                    getPort().setDescription(portInfo.getLink(0).name);
-                    getFrameworkElement(portInfo.getLink(0).parent, portInfo.getLink(0).extraFlags).addChild(getPort());
+            synchronized (getPort().getRegistryLock()) {
+                updateFlags(portInfo.getFlags());
+                getPort().setMinNetUpdateInterval(portInfo.getMinNetUpdateInterval());
+                updateIntervalPartner = portInfo.getMinNetUpdateInterval(); // TODO redundant?
+                propagateStrategyFromTheNet(portInfo.getStrategy());
+                if (TCPSettings.DISPLAY_INCOMING_PORT_UPDATES.get()) {
+                    System.out.println("Updating port info: " + portInfo.toString());
                 }
+                if (portInfo.opCode == RuntimeListener.ADD) {
+                    assert(!getPort().isReady());
+                    if (filter.isPortOnlyFilter()) {
+                        for (int i = 1, n = portInfo.getLinkCount(); i < n; i++) {
+                            FrameworkElement parent = (portInfo.getLink(i).extraFlags & CoreFlags.GLOBALLY_UNIQUE_LINK) > 0 ? globalLinks : (FrameworkElement)RemoteServer.this;
+                            getPort().link(parent, portInfo.getLink(i).name);
+                        }
+                        FrameworkElement parent = (portInfo.getLink(0).extraFlags & CoreFlags.GLOBALLY_UNIQUE_LINK) > 0 ? globalLinks : (FrameworkElement)RemoteServer.this;
+                        getPort().setDescription(portInfo.getLink(0).name);
+                        parent.addChild(getPort());
+                    } else {
+                        for (@SizeT int i = 1; i < portInfo.getLinkCount(); i++) {
+                            FrameworkElement parent = getFrameworkElement(portInfo.getLink(i).parent, portInfo.getLink(i).extraFlags, true, 0);
+                            getPort().link(parent, portInfo.getLink(i).name);
+                        }
+                        getPort().setDescription(portInfo.getLink(0).name);
+                        getFrameworkElement(portInfo.getLink(0).parent, portInfo.getLink(0).extraFlags, true, 0).addChild(getPort());
+                    }
+                }
+                checkSubscription();
             }
-            checkSubscription();
         }
 
         @Override
@@ -682,33 +627,35 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
          * @see core.plugin.tcp2.TCPPort#checkSubscription()
          */
         @Override
-        protected synchronized void checkSubscription() {
-            AbstractPort p = getPort();
-            boolean revPush = p.isInputPort() && p.isConnectedToReversePushSources();
-            short time = getUpdateIntervalForNet();
-            short strategy = p.isInputPort() ? 0 : p.getStrategy();
-            if (!p.isConnected()) {
-                strategy = -1;
-            }
+        protected void checkSubscription() {
+            synchronized (getPort().getRegistryLock()) {
+                AbstractPort p = getPort();
+                boolean revPush = p.isInputPort() && p.isConnectedToReversePushSources();
+                short time = getUpdateIntervalForNet();
+                short strategy = p.isInputPort() ? 0 : p.getStrategy();
+                if (!p.isConnected()) {
+                    strategy = -1;
+                }
 
-            @Ptr Connection c = (Connection)connection;
+                @Ptr Connection c = (Connection)connection;
 
-            if (c == null) {
-                subscriptionStrategy = -1;
-                subscriptionRevPush = false;
-                subscriptionUpdateTime = -1;
-            } else if (strategy == -1 && subscriptionStrategy > -1) { // disconnect
-                c.unsubscribe(remoteHandle);
-                subscriptionStrategy = -1;
-                subscriptionRevPush = false;
-                subscriptionUpdateTime = -1;
-            } else if (strategy == -1) {
-                // still disconnected
-            } else if (strategy != subscriptionStrategy || time != subscriptionUpdateTime || revPush != subscriptionRevPush) {
-                c.subscribe(remoteHandle, strategy, revPush, time, p.getHandle());
-                subscriptionStrategy = strategy;
-                subscriptionRevPush = revPush;
-                subscriptionUpdateTime = time;
+                if (c == null) {
+                    subscriptionStrategy = -1;
+                    subscriptionRevPush = false;
+                    subscriptionUpdateTime = -1;
+                } else if (strategy == -1 && subscriptionStrategy > -1) { // disconnect
+                    c.unsubscribe(remoteHandle);
+                    subscriptionStrategy = -1;
+                    subscriptionRevPush = false;
+                    subscriptionUpdateTime = -1;
+                } else if (strategy == -1) {
+                    // still disconnected
+                } else if (strategy != subscriptionStrategy || time != subscriptionUpdateTime || revPush != subscriptionRevPush) {
+                    c.subscribe(remoteHandle, strategy, revPush, time, p.getHandle());
+                    subscriptionStrategy = strategy;
+                    subscriptionRevPush = revPush;
+                    subscriptionUpdateTime = time;
+                }
             }
         }
     }
@@ -740,6 +687,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         pci.maxQueueSize = portInfo.getStrategy();
 
         pci.dataType = portInfo.getDataType();
+        pci.lockOrder = LockOrderLevels.REMOTE_PORT;
 
         return pci;
     }
@@ -786,6 +734,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
             updateTimes.deserialize(cis);
 
             @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Client " + typeString + "-Listener for " + getDescription()));
+            super.reader = listener;
             @SharedPtr Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Client " + typeString + "-Writer for " + getDescription()));
             super.writer = writer;
 
@@ -793,7 +742,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                 boolean newServer = (serverCreationTime < 0) || (serverCreationTime != timeBase);
                 if (!newServer) {
                     System.out.print("Re-");
-                }
+                } /*else {
+                    serverCreationTime = timeBase;
+                }*/
                 System.out.println("Connecting to server " + socket_.getRemoteSocketAddress().toString() + "...");
                 retrieveRemotePorts(cis, cos, updateTimes, newServer);
             }
@@ -808,7 +759,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         }
 
         @Override
-        public synchronized void handleDisconnect() {
+        public void handleDisconnect() {
             RemoteServer.this.disconnect();
         }
 
@@ -837,54 +788,28 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
 
                 // write to proxy port
                 if (ap != null) {
-                    byte changedFlag = cis.readByte();
-                    cis.setBufferSource(p.getPort());
-                    p.receiveDataFromStream(cis, Time.getCoarse(), changedFlag);
-                    cis.setBufferSource(null);
+
+                    // make sure, "our" port is not deleted while we use it
+                    synchronized (ap) {
+                        if (!ap.isReady()) {
+                            cis.toSkipTarget();
+                        } else {
+                            byte changedFlag = cis.readByte();
+                            cis.setBufferSource(p.getPort());
+                            p.receiveDataFromStream(cis, Time.getCoarse(), changedFlag);
+                            cis.setBufferSource(null);
+                        }
+                    }
                 } else {
                     cis.toSkipTarget();
                 }
                 break;
 
-//          case TCP.METHODCALL:
-//
-//              if (ap == null) {
-//                  if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-//                      System.out.println("Skipping Incoming Server Command: Method call for portIndex " + portIndex);
-//                  }
-//                  cis.toSkipTarget();
-//              }
-//
-//              // okay... this is handled asynchronously now
-//              // create/decode call
-//              cis.setBufferSource(p.getPort());
-//              // lookup method type
-//              DataType methodType = cis.readType();
-//              if (methodType == null || (!methodType.isMethodType())) {
-//                  cis.toSkipTarget();
-//              } else {
-//                  mc = ThreadLocalCache.getFast().getUnusedMethodCall();
-//                  mc.deserializeCall(cis, methodType);
-//
-//                  // process call
-//                  if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-//                      System.out.println("Incoming Server Command: Method call " + (p != null ? p.getPort().getQualifiedName() : handle));
-//                  }
-//                  p.handleCallReturnFromNet(mc);
-//              }
-//              cis.setBufferSource(null);
-//
-//              break;
-
-//          case TCP.PULLCALL:
-//
-//              handlePullCall(p, handle, RemoteServer.this);
-//              break;
-
             case TCP.PORT_UPDATE:
 
                 tmpInfo.deserialize(cis, updateTimes);
                 processPortUpdate(tmpInfo);
+                init();
                 break;
 
             default:
@@ -932,35 +857,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
             // send port data
             return super.sendDataPrototype(startTime, TCP.SET);
 
-            /*
-            boolean requestAcknowledgement = false;
-
-            @Ptr ArrayWrapper<ProxyPort> it = monitoredPorts.getIterable();
-            for (@SizeT int i = 0, n = it.size(); i < n; i++) {
-                ProxyPort pp = it.get(i);
-                if (pp.lastUpdate + pp.getPort().getMinNetUpdateInterval() > startTime) {
-
-                    // value cannot be written in this iteration due to minimal update rate
-                    notifyWriter();
-
-                } else if (pp.getPort().hasChanged()) {
-                    pp.getPort().resetChanged();
-                    requestAcknowledgement = true;
-
-                    // execute/write set command to stream
-                    cos.writeByte(TCP.SET);
-                    cos.writeInt(pp.getRemoteHandle());
-                    cos.writeSkipOffsetPlaceholder();
-                    pp.writeDataToNetwork(cos, startTime);
-                    cos.skipTargetHere();
-                    terminateCommand();
-                }
-            }
-            // release any locks we acquired
-            ThreadLocalCache.get().releaseAllLocks();
-
-            return requestAcknowledgement;
-            */
         }
 
         @Override
@@ -999,6 +895,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         public ConnectorThread() {
             super(TCPSettings.CONNECTOR_THREAD_LOOP_INTERVAL, false, false);
             setName("TCP Connector Thread for " + getDescription());
+            System.out.println("Creating " + getName());
             //this.setPriority(1); // low priority
         }
 
@@ -1037,45 +934,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
 
                         lastSubscriptionUpdate = startTime;
 
-//                      // Update subscriptions (should not take significant time)
-//                      synchronized(RemoteServer.this) {
-//                          if (isDeleted()) {
-//                              return;
-//                          }
-//
-//                          ci.reset();
-//                          for (ProxyPort pp = ci.next(); pp != null; pp = ci.next()) {
-//                              AbstractPort ap = pp.getPort();
-//                              Connection connection = ap.getFlag(PortFlags.IS_EXPRESS_PORT) ? express : bulk;
-//
-//                              // Update Subscriptions
-//                              short updateTime = pp.getMinNetUpdateIntervalForSubscription();
-//                              if (ap.isOutputPort()) { // remote output port
-//                                  if (ap.hasActiveEdges()) {
-//                                      int qlen = ap.getMaxTargetQueueLength();
-//                                      if (qlen != pp.subscriptionQueueLength || updateTime != pp.subscriptionUpdateTime) {
-//                                          pp.subscriptionQueueLength = qlen;
-//                                          pp.subscriptionUpdateTime = updateTime;
-//                                          connection.subscribe(pp.remoteHandle, qlen, updateTime, ap.getHandle());
-//                                      }
-//                                  } else if (pp.subscriptionQueueLength > 0) {
-//                                      pp.subscriptionQueueLength = 0;
-//                                      connection.unsubscribe(pp.remoteHandle);
-//                                  }
-//                              } else { // remote input port and local io port(s)
-//                                  if (ap.hasActiveEdgesReverse()) {
-//                                      if (pp.subscriptionQueueLength != 1 || updateTime != pp.subscriptionUpdateTime) {
-//                                          pp.subscriptionQueueLength = 1;
-//                                          pp.subscriptionUpdateTime = updateTime;
-//                                          connection.subscribe(pp.remoteHandle, 1, updateTime, ap.getHandle());
-//                                      }
-//                                  } else if (pp.subscriptionQueueLength > 0) {
-//                                      pp.subscriptionQueueLength = 0;
-//                                      connection.unsubscribe(pp.remoteHandle);
-//                                  }
-//                              }
-//                          }
-//                      }
                     }
 
                     // wait remaining uncritical time
@@ -1108,6 +966,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
      * Disconnects and pauses connector thread
      */
     public synchronized void temporaryDisconnect() {
+
         connectorThread.pauseThread();
         disconnect();
     }
@@ -1140,7 +999,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                 if (c.pingTimeExceeed()) {
                     return 0;
                 }
-                pingTime = Math.max(pingTime, c.getAvgPingTime());
+                pingTime = Math.max(pingTime, (float)c.getAvgPingTime());
             }
         }
         if (pingTime < 300) {
@@ -1189,5 +1048,20 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         } else {
             return (dataRate / 1000000) + "M";
         }
+    }
+
+    /**
+     * Early preparations for deleting this
+     */
+    public void earlyDeletingPreparations() {
+        connectorThread.stopThread();
+        deletedSoon = true;
+    }
+
+    /**
+     * @return true when server will soon be deleted
+     */
+    public boolean deletedSoon() {
+        return deletedSoon;
     }
 }

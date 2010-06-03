@@ -29,6 +29,7 @@ import java.net.SocketException;
 import org.finroc.jc.ArrayWrapper;
 import org.finroc.jc.AtomicDoubleInt;
 import org.finroc.jc.HasDestructor;
+import org.finroc.jc.MutexLockOrder;
 import org.finroc.jc.Time;
 import org.finroc.jc.annotation.AtFront;
 import org.finroc.jc.annotation.Const;
@@ -46,6 +47,7 @@ import org.finroc.jc.container.SafeConcurrentlyIterableList;
 import org.finroc.jc.container.WonderQueue;
 import org.finroc.jc.net.NetSocket;
 
+import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeSettings;
 import org.finroc.core.buffer.CoreOutput;
 import org.finroc.core.buffer.CoreInput;
@@ -87,6 +89,9 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
 
     /** Writer Thread */
     protected @WeakPtr Writer writer;
+
+    /** Reader Thread */
+    protected @WeakPtr Reader reader;
 
     /** Timestamp relative to which time is encoded in this stream */
     protected long timeBase;
@@ -134,6 +139,9 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
     /** Rx related: last time RX was retrieved: how much have we received in total? */
     protected long lastRxPosition = 0;
 
+    /** Needs to be locked after framework elements, but before runtime registry */
+    public final MutexLockOrder objMutex = new MutexLockOrder(LockOrderLevels.REMOTE + 1);
+
     /**
      * @param type Connection type
      * @param peer TCPPeer that this connection belongs to (null if it does not belong to a peer)
@@ -177,7 +185,7 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
     /**
      * Close connection
      */
-    public void disconnect() {
+    public synchronized void disconnect() {
         disconnectSignal = true;
         RuntimeSettings.getInstance().removeUpdateTimeChangeListener(this);
         if (peer != null) {
@@ -188,6 +196,34 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
         try {
             socket.close(); // stops reader
         } catch (Exception e) {}
+
+        // join threads for thread safety
+        @InCpp("::std::tr1::shared_ptr<Writer> lockedWriter = writer._lock();")
+        @SharedPtr Writer lockedWriter = writer;
+        if (lockedWriter != null && Thread.currentThread() != lockedWriter) {
+            try {
+                lockedWriter.join();
+                writer = null;
+            } catch (InterruptedException e) {
+                //JavaOnlyBlock
+                e.printStackTrace();
+
+                //Cpp _printf("warning: TCPConnection::disconnect() - Interrupted waiting for writer thread.\n");
+            }
+        }
+        @InCpp("::std::tr1::shared_ptr<Reader> lockedReader = reader._lock();")
+        @SharedPtr Reader lockedReader = reader;
+        if (lockedReader != null && Thread.currentThread() != lockedReader) {
+            try {
+                lockedReader.join();
+                reader = null;
+            } catch (InterruptedException e) {
+                //JavaOnlyBlock
+                e.printStackTrace();
+
+                //Cpp _printf("warning: TCPConnection::disconnect() - Interrupted waiting for reader thread.\n");
+            }
+        }
     }
 
     /**
@@ -294,7 +330,10 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
                 }
             } catch (Exception e) {
                 //JavaOnlyBlock
-                if (!(e instanceof EOFException || e instanceof SocketException)) {
+                if (e instanceof RuntimeException && e.getCause() != null) {
+                    e = (Exception)e.getCause();
+                }
+                if (!(e instanceof EOFException || e instanceof SocketException || e instanceof java.io.IOException)) {
                     e.printStackTrace();
                 }
 
@@ -500,7 +539,17 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+
+                //JavaOnlyBlock
+                if (e instanceof RuntimeException && e.getCause() != null) {
+                    e = (Exception)e.getCause();
+                }
+                if (!(e instanceof SocketException)) {
+                    e.printStackTrace();
+                }
+
+                //Cpp e.printStackTrace();
+
                 try {
                     handleDisconnect();
                 } catch (Exception e2) {
@@ -722,7 +771,7 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
         byte changedFlag = 0;
         for (@SizeT int i = 0, n = monitoredPorts.size(); i < n; i++) {
             TCPPort pp = it.get(i);
-            if (pp != null) {
+            if (pp != null && pp.getPort().isReady()) {
                 if (pp.getLastUpdate() + pp.getUpdateIntervalForNet() > startTime) {
 
                     // value cannot be written in this iteration due to minimal update rate
@@ -791,33 +840,45 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
         cis.readSkipOffset();
         TCPPort port = lookupPortForCallHandling(handle);
 
-        if (port == null) {
+        if (port == null || (!port.getPort().isReady())) {
             // port does not exist anymore - discard call
             cis.toSkipTarget();
             return;
         }
 
-        // deserialize pull call
-        PullCall pc = ThreadLocalCache.getFast().getUnusedPullCall();
-        try {
-            cis.setBufferSource(port.getPort());
-            pc.deserialize(cis);
-            cis.setBufferSource(null);
+        // make sure, "our" port is not deleted while we use it
+        synchronized (port.getPort()) {
 
-            // process call
-            if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-                System.out.println("Incoming Server Command: Pull return call " + (port != null ? port.getPort().getQualifiedName() : handle) + " status: " + pc.getStatusString());
+            // check ready again...
+            if (!port.getPort().isReady()) {
+                // port is deleted - discard call
+                cis.toSkipTarget();
+                return;
             }
 
-            // Returning call
-            pc.deserializeParamaters();
-        } catch (Exception e) {
-            e.printStackTrace();
-            pc.recycle();
-            pc = null;
-        }
-        if (pc != null) {
-            port.handleCallReturnFromNet(pc);
+            // deserialize pull call
+            PullCall pc = ThreadLocalCache.getFast().getUnusedPullCall();
+            try {
+                cis.setBufferSource(port.getPort());
+                pc.deserialize(cis);
+                cis.setBufferSource(null);
+
+                // debug output
+                if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
+                    System.out.println("Incoming Server Command: Pull return call " + (port != null ? port.getPort().getQualifiedName() : handle) + " status: " + pc.getStatusString());
+                }
+
+                // Returning call
+                pc.deserializeParamaters();
+            } catch (Exception e) {
+                e.printStackTrace();
+                pc.recycle();
+                pc = null;
+            }
+
+            if (pc != null) {
+                port.handleCallReturnFromNet(pc);
+            }
         }
     }
 
@@ -832,13 +893,6 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
         int remoteHandle = cis.readInt();
         cis.readSkipOffset();
         TCPPort port = lookupPortForCallHandling(handle);
-
-//      if (port == null) {
-//          if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-//              System.out.println("Skipping Incoming Server Command: Pull call for portIndex " + handle);
-//          }
-//          cis.toSkipTarget();
-//      }
 
         // create/decode call
         PullCall pc = ThreadLocalCache.getFast().getUnusedPullCall();
@@ -864,23 +918,6 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
 //          pc.setRemotePortHandle(remoteHandle);
             pc.prepareForExecution(port);
             RPCThreadPool.getInstance().executeTask(pc);
-//          if (port.handlePullFromNet(pc)) {
-//              pc.setRemotePortHandle(pc.popCaller());
-//              sendCall(pc);
-//          }
-//              pc.pushCaller(returnHandler); // return will arrive at our framework element
-//              if (port.getPort().getDataType().isCCType()) {
-//                  CCPortBase port2 = (CCPortBase)port.getPort();
-//                  port2.pullValueRaw(pc, ThreadLocalCache.getFast());
-//              } else if (port.getPort().getDataType().isStdType()) {
-//                  PortBase port2 = (PortBase)port.getPort();
-//                  port2.pullValueRaw(pc);
-//              } else {
-//                  System.out.println("TCPServerConnection-TCP:PULL: Target port has invalid data type");
-//                  pc.setStatus(AbstractCall.CONNECTION_EXCEPTION);
-//                  pc.setRemotePortHandle(pc.popCaller());
-//                  sendCall(pc);
-//              }
         }
     }
 
@@ -896,32 +933,53 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
         cis.readSkipOffset();
         TCPPort port = lookupPortForCallHandling(handle);
 
-        // create/decode call
-        boolean skipCall = (port == null || methodType == null || (!methodType.isMethodType()));
-        MethodCall mc = ThreadLocalCache.getFast().getUnusedMethodCall();
-        cis.setBufferSource(port == null ? null : port.getPort());
-        try {
-            mc.deserializeCall(cis, methodType, skipCall);
-        } catch (Exception e) {
-            cis.setBufferSource(null);
-            mc.recycle();
-            return;
-        }
-        cis.setBufferSource(null);
+        if ((port == null || methodType == null || (!methodType.isMethodType()))) {
 
-        // process call
-        if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-            System.out.println("Incoming Server Command: Method call " + (port != null ? port.getPort().getQualifiedName() : handle));
-        }
-        if (skipCall) {
+            // create/decode call
+            MethodCall mc = ThreadLocalCache.getFast().getUnusedMethodCall();
+            try {
+                mc.deserializeCall(cis, methodType, true);
+            } catch (Exception e) {
+                mc.recycle();
+                return;
+            }
+
             mc.setExceptionStatus(MethodCallException.Type.NO_CONNECTION);
             mc.setRemotePortHandle(remoteHandle);
             mc.setLocalPortHandle(handle);
             sendCall(mc);
             cis.toSkipTarget();
-        } else {
-            NetPort.InterfaceNetPortImpl inp = (NetPort.InterfaceNetPortImpl)port.getPort();
-            inp.processCallFromNet(mc);
+        }
+
+        // make sure, "our" port is not deleted while we use it
+        synchronized (port.getPort()) {
+
+            boolean skipCall = (!port.getPort().isReady());
+            MethodCall mc = ThreadLocalCache.getFast().getUnusedMethodCall();
+            cis.setBufferSource(skipCall ? null : port.getPort());
+            try {
+                mc.deserializeCall(cis, methodType, skipCall);
+            } catch (Exception e) {
+                cis.setBufferSource(null);
+                mc.recycle();
+                return;
+            }
+            cis.setBufferSource(null);
+
+            // process call
+            if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
+                System.out.println("Incoming Server Command: Method call " + (port != null ? port.getPort().getQualifiedName() : handle));
+            }
+            if (skipCall) {
+                mc.setExceptionStatus(MethodCallException.Type.NO_CONNECTION);
+                mc.setRemotePortHandle(remoteHandle);
+                mc.setLocalPortHandle(handle);
+                sendCall(mc);
+                cis.toSkipTarget();
+            } else {
+                NetPort.InterfaceNetPortImpl inp = (NetPort.InterfaceNetPortImpl)port.getPort();
+                inp.processCallFromNet(mc);
+            }
         }
     }
 
@@ -944,27 +1002,36 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
             return;
         }
 
-        // create/decode call
-        MethodCall mc = ThreadLocalCache.getFast().getUnusedMethodCall();
-        //boolean skipCall = (methodType == null || (!methodType.isMethodType()));
-        cis.setBufferSource(port.getPort());
-        try {
-            mc.deserializeCall(cis, methodType, false);
-        } catch (Exception e) {
-            cis.toSkipTarget();
+        // make sure, "our" port is not deleted while we use it
+        synchronized (port.getPort()) {
+
+            if (!port.getPort().isReady()) {
+                cis.toSkipTarget();
+                return;
+            }
+
+            // create/decode call
+            MethodCall mc = ThreadLocalCache.getFast().getUnusedMethodCall();
+            //boolean skipCall = (methodType == null || (!methodType.isMethodType()));
+            cis.setBufferSource(port.getPort());
+            try {
+                mc.deserializeCall(cis, methodType, false);
+            } catch (Exception e) {
+                cis.toSkipTarget();
+                cis.setBufferSource(null);
+                mc.recycle();
+                return;
+            }
             cis.setBufferSource(null);
-            mc.recycle();
-            return;
-        }
-        cis.setBufferSource(null);
 
-        // process call
-        if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-            System.out.println("Incoming Server Command: Method call return " + (port != null ? port.getPort().getQualifiedName() : handle));
-        }
+            // process call
+            if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
+                System.out.println("Incoming Server Command: Method call return " + (port != null ? port.getPort().getQualifiedName() : handle));
+            }
 
-        // process call
-        port.handleCallReturnFromNet(mc);
+            // process call
+            port.handleCallReturnFromNet(mc);
+        }
     }
 
     /**

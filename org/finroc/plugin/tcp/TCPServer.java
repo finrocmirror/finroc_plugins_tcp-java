@@ -26,11 +26,13 @@ import org.finroc.jc.annotation.CppUnused;
 import org.finroc.jc.annotation.ForwardDecl;
 import org.finroc.jc.annotation.Managed;
 import org.finroc.jc.annotation.Ptr;
+import org.finroc.jc.net.IOException;
 import org.finroc.jc.net.NetSocket;
 import org.finroc.jc.net.TCPConnectionHandler;
 
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
+import org.finroc.core.LockOrderLevels;
 
 /**
  * @author max
@@ -63,7 +65,7 @@ public class TCPServer extends FrameworkElement implements org.finroc.jc.net.TCP
      */
     public TCPServer(int port, boolean tryNextPortsIfOccupied, TCPPeer peer) {
         //super("tcpserver_" + name + "_" + networkName);
-        super("TCP Server", peer, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT);
+        super("TCP Server", peer, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT, LockOrderLevels.LEAF_GROUP);
         this.peer = peer;
         TCPSettings.initInstance();
         this.port = port;
@@ -91,7 +93,15 @@ public class TCPServer extends FrameworkElement implements org.finroc.jc.net.TCP
     }
 
     @Override
-    public void acceptConnection(NetSocket s, byte firstByte) {
+    public synchronized void acceptConnection(NetSocket s, byte firstByte) {
+        if (isDeleted()) {
+            try {
+                s.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return;
+        }
         try {
             @SuppressWarnings("unused") @CppUnused
             @Ptr @Managed TCPServerConnection connection = new TCPServerConnection(s, firstByte, this, peer);
