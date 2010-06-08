@@ -21,9 +21,7 @@
  */
 package org.finroc.plugin.tcp;
 
-import org.finroc.jc.MutexLockOrder;
 import org.finroc.jc.annotation.Elems;
-import org.finroc.jc.annotation.Mutable;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.SizeT;
 import org.finroc.jc.container.SimpleList;
@@ -32,7 +30,6 @@ import org.finroc.jc.net.IPSocketAddress;
 import org.finroc.jc.stream.InputStreamBuffer;
 import org.finroc.jc.stream.OutputStreamBuffer;
 
-import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.port.net.AbstractPeerTracker;
 
@@ -56,16 +53,13 @@ public class PeerList extends AbstractPeerTracker {
     /** Server port of own peer */
     private final int serverPort;
 
-    /** Lock order */
-    @Mutable
-    public MutexLockOrder objMutex = new MutexLockOrder(LockOrderLevels.INNER_MOST - 200);
-
     /** @param serverPort Server port of own peer */
-    public PeerList(int serverPort) {
-        super(LockOrderLevels.RUNTIME_REGISTER + 1);
+    public PeerList(int serverPort, int lockOrder) {
+        super(lockOrder);
         this.serverPort = serverPort;
         if (serverPort > 0) {
-            addPeer(new IPSocketAddress("localhost", serverPort), false);
+            peers.add(new IPSocketAddress("localhost", serverPort));
+            revision++;
         }
     }
 

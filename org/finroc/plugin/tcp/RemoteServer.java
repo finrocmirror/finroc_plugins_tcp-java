@@ -406,7 +406,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
             assert(pxe.remoteHandle == handle);
         } else {
             if (portParent) {
-                pxe = new ProxyFrameworkElement(handle, extraFlags, LockOrderLevels.PORT - 10);
+                pxe = new ProxyFrameworkElement(handle, extraFlags, LockOrderLevels.REMOTE_PORT - 10);
             } else {
                 FrameworkElement parent = (parentHandle == RuntimeEnvironment.getInstance().getHandle()) ? (FrameworkElement)this : (FrameworkElement)remoteElementRegister.get(-parentHandle);
                 assert(parent != null) : "Framework elements published in the wrong order - server's fault (programming error)";

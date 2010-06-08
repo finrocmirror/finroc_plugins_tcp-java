@@ -123,7 +123,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     }
 
     public void postChildInit() {
-        tracker = new PeerList(isServer() ? server.getPort() : -1);
+        tracker = new PeerList(isServer() ? server.getPort() : -1, getLockOrder() + 1);
         if (isServer()) {
             tracker.registerServer(networkName, name, server.getPort());
         }
@@ -153,36 +153,40 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     }
 
     @Override
-    public synchronized void nodeDiscovered(IPSocketAddress isa, String name) {
-        if (getFlag(CoreFlags.DELETED)) {
-            return;
-        }
+    public void nodeDiscovered(IPSocketAddress isa, String name) {
+        synchronized (tracker) {
+            if (getFlag(CoreFlags.DELETED)) {
+                return;
+            }
 
-        // add port & connect
-        RemoteServer rs = new RemoteServer(isa, name, this, filter, this);
-        rs.init();
+            // add port & connect
+            RemoteServer rs = new RemoteServer(isa, name, this, filter, this);
+            rs.init();
+        }
     }
 
     @Override
-    public synchronized Object nodeRemoved(IPSocketAddress isa, String name) {
-        if (getFlag(CoreFlags.DELETED)) {
+    public Object nodeRemoved(IPSocketAddress isa, String name) {
+        synchronized (tracker) {
+            if (getFlag(CoreFlags.DELETED)) {
+                return null;
+            }
+
+            // remove port & disconnect
+            ci.reset();
+            for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
+                if (fe == server) {
+                    continue;
+                }
+                RemoteServer rs = (RemoteServer)fe;
+                if (rs.getPartnerAddress().equals(isa) && (!rs.deletedSoon()) && (!rs.isDeleted())) {
+                    rs.earlyDeletingPreparations();
+                    return rs;
+                }
+            }
+            System.out.println("TCPClient warning: Node " + name + " not found");
             return null;
         }
-
-        // remove port & disconnect
-        ci.reset();
-        for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
-            if (fe == server) {
-                continue;
-            }
-            RemoteServer rs = (RemoteServer)fe;
-            if (rs.getPartnerAddress().equals(isa) && (!rs.deletedSoon()) && (!rs.isDeleted())) {
-                rs.earlyDeletingPreparations();
-                return rs;
-            }
-        }
-        System.out.println("TCPClient warning: Node " + name + " not found");
-        return null;
     }
 
     @Override
@@ -194,51 +198,54 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     @Override
     protected synchronized void connectImpl(String address, boolean sameAddress) throws Exception {
 
-        assert(isReady());
-        tracker.addListener(this);
+        synchronized (tracker) {
 
-        if (sameAddress) {
+            assert(isReady());
+            tracker.addListener(this);
 
-            ci.reset();
-            FrameworkElement fe = null;
-            while ((fe = ci.next()) != null) {
-                if (fe instanceof RemoteServer) {
-                    RemoteServer rs = (RemoteServer)fe;
-                    synchronized (rs) {
-                        if (rs.isReady() && (!rs.deletedSoon())) {
-                            rs.reconnect();
+            if (sameAddress) {
+
+                ci.reset();
+                FrameworkElement fe = null;
+                while ((fe = ci.next()) != null) {
+                    if (fe instanceof RemoteServer) {
+                        RemoteServer rs = (RemoteServer)fe;
+                        synchronized (rs) {
+                            if (rs.isReady() && (!rs.deletedSoon())) {
+                                rs.reconnect();
+                            }
                         }
                     }
                 }
-            }
 
-        } else {
+            } else {
 
-            // is this an ip address?
-            int idx = address.indexOf(":");
-            boolean ip = false;
-            if (idx > 0) {
-                String host = address.substring(0, idx);
-                String port = address.substring(idx + 1);
+                // is this an ip address?
+                int idx = address.indexOf(":");
+                boolean ip = false;
+                if (idx > 0) {
+                    String host = address.substring(0, idx);
+                    String port = address.substring(idx + 1);
 
-                ip = true;
-                for (@SizeT int i = 0; i < port.length(); i++) {
-                    if (!Character.isDigit(port.charAt(i))) {
-                        ip = false;
+                    ip = true;
+                    for (@SizeT int i = 0; i < port.length(); i++) {
+                        if (!Character.isDigit(port.charAt(i))) {
+                            ip = false;
+                        }
                     }
-                }
 
-                // we don't want to connect to ourselves
-                if ((host.equals("localhost") || host.startsWith("127.0")) && server != null && Integer.parseInt(port) == server.getPort()) {
-                    return;
-                }
+                    // we don't want to connect to ourselves
+                    if ((host.equals("localhost") || host.startsWith("127.0")) && server != null && Integer.parseInt(port) == server.getPort()) {
+                        return;
+                    }
 
-                if (ip) {
-                    IPSocketAddress isa = new IPSocketAddress(host, Integer.parseInt(port));
-                    tracker.addPeer(isa, false);
-                    RemoteServer rs = new RemoteServer(isa, address, this, filter, this);
-                    rs.init();
-                    return;
+                    if (ip) {
+                        IPSocketAddress isa = new IPSocketAddress(host, Integer.parseInt(port));
+                        tracker.addPeer(isa, false);
+                        RemoteServer rs = new RemoteServer(isa, address, this, filter, this);
+                        rs.init();
+                        return;
+                    }
                 }
             }
         }
@@ -251,7 +258,10 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     @Override
     protected synchronized void disconnectImpl() throws Exception {
         if (tracker != null) {
-            tracker.removeListener(this);
+            synchronized (tracker) {
+                tracker.removeListener(this);
+            }
+            // now we can be sure that no new nodes will be added
         }
         //tracker.delete();
 
