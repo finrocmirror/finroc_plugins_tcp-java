@@ -163,7 +163,7 @@ public class PeerList extends AbstractPeerTracker {
             } else {
 
                 // replace partner's localhost entries with partnerAddress
-                if (ia.getAddress().equals(IPAddress.getLocalHost())) {
+                if (ia.getAddress().isLocalHost()) {
                     ia = new IPSocketAddress(partnerAddress, ia.getPort());
                 }
 
