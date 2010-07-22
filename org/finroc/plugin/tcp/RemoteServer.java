@@ -567,6 +567,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                 getPort().setMinNetUpdateInterval(portInfo.getMinNetUpdateInterval());
                 updateIntervalPartner = portInfo.getMinNetUpdateInterval(); // TODO redundant?
                 propagateStrategyFromTheNet(portInfo.getStrategy());
+                portInfo.getConnections(connections);
                 if (TCPSettings.DISPLAY_INCOMING_PORT_UPDATES.get()) {
                     System.out.println("Updating port info: " + portInfo.toString());
                 }

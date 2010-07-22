@@ -25,6 +25,7 @@ import org.finroc.jc.GarbageCollector;
 import org.finroc.jc.annotation.CppInclude;
 import org.finroc.jc.annotation.ForwardDecl;
 import org.finroc.jc.annotation.Ptr;
+import org.finroc.jc.container.SimpleList;
 import org.finroc.core.RuntimeSettings;
 import org.finroc.core.port.PortCreationInfo;
 import org.finroc.core.port.PortFlags;
@@ -52,6 +53,9 @@ public abstract class TCPPort extends NetPort {
 
     /** Update interval as requested by connection partner - -1 or smaller means no request */
     protected short updateIntervalPartner = -1;
+
+    /** Handles (remote) of port's outgoing connections */
+    protected SimpleList<Integer> connections = new SimpleList<Integer>();
 
     /**
      * @param pci Port Creation Info
