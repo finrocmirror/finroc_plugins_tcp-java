@@ -33,6 +33,7 @@ import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.Ref;
 import org.finroc.jc.annotation.SharedPtr;
 import org.finroc.jc.annotation.SizeT;
+import org.finroc.jc.log.LogDefinitions;
 import org.finroc.jc.net.ConnectException;
 import org.finroc.jc.net.IOException;
 import org.finroc.jc.net.IPSocketAddress;
@@ -40,6 +41,8 @@ import org.finroc.jc.net.NetSocket;
 
 import org.finroc.jc.stream.LargeIntermediateStreamBuffer;
 import org.finroc.jc.thread.ThreadUtil;
+import org.finroc.log.LogDomain;
+import org.finroc.log.LogLevel;
 
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
@@ -125,6 +128,10 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
 
     /** Set to true when server will soon be deleted */
     private boolean deletedSoon = false;
+
+    /** Log domain for this class */
+    @InCpp("_CREATE_NAMED_LOGGING_DOMAIN(logDomain, \"tcp\");")
+    public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /**
      * @param isa Network address
@@ -327,18 +334,18 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
     @Override
     protected synchronized void prepareDelete() {
         RuntimeEnvironment.getInstance().removeListener(this);
-        System.out.println("RemoteServer: Stopping ConnectorThread");
+        log(LogLevel.LL_DEBUG_VERBOSE_1, logDomain, "RemoteServer: Stopping ConnectorThread");
         connectorThread.stopThread();
         try {
             connectorThread.join();
         } catch (InterruptedException e) {
 
             //JavaOnlyBlock
-            e.printStackTrace();
+            log(LogLevel.LL_WARNING, logDomain, e);
 
-            //Cpp _printf("warning: RemoteServer::prepareDelete() - Interrupted waiting for connector thread.\n");
+            //Cpp _FINROC_LOG_STREAM(rrlib::logging::eLL_WARNING, logDomain) << "warning: RemoteServer::prepareDelete() - Interrupted waiting for connector thread.";
         }
-        System.out.println("RemoteServer: Disconnecting");
+        log(LogLevel.LL_DEBUG, logDomain, "RemoteServer: Disconnecting");
         disconnect();
 
         // delete all elements created by this remote server (should be done automatically, actually)
@@ -568,9 +575,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                 updateIntervalPartner = portInfo.getMinNetUpdateInterval(); // TODO redundant?
                 propagateStrategyFromTheNet(portInfo.getStrategy());
                 portInfo.getConnections(connections);
-                if (TCPSettings.DISPLAY_INCOMING_PORT_UPDATES.get()) {
-                    System.out.println("Updating port info: " + portInfo.toString());
-                }
+                log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Updating port info: " + portInfo.toString());
                 if (portInfo.opCode == RuntimeListener.ADD) {
                     assert(!getPort().isReady());
                     if (filter.isPortOnlyFilter()) {
@@ -741,12 +746,12 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
 
             if (bulk) {
                 boolean newServer = (serverCreationTime < 0) || (serverCreationTime != timeBase);
-                if (!newServer) {
+                /*if (!newServer) {
                     System.out.print("Re-");
-                } /*else {
+                } else {
                     serverCreationTime = timeBase;
                 }*/
-                System.out.println("Connecting to server " + socket_.getRemoteSocketAddress().toString() + "...");
+                log(LogLevel.LL_DEBUG, logDomain, (newServer ? "Connecting" : "Reconnecting") + " to server " + socket_.getRemoteSocketAddress().toString() + "...");
                 retrieveRemotePorts(cis, cos, updateTimes, newServer);
             }
 
@@ -862,7 +867,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
 
         @Override
         public void handlePingTimeExceed() {
-            System.out.println("TCPClient warning: critical ping time exceeded");
+            log(LogLevel.LL_WARNING, logDomain, "TCPClient warning: critical ping time exceeded");
         }
 
         @Override
@@ -896,7 +901,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         public ConnectorThread() {
             super(TCPSettings.CONNECTOR_THREAD_LOOP_INTERVAL, false, false);
             setName("TCP Connector Thread for " + getDescription());
-            System.out.println("Creating " + getName());
+            log(LogLevel.LL_DEBUG_VERBOSE_1, logDomain, "Creating " + getName());
             //this.setPriority(1); // low priority
         }
 
@@ -918,7 +923,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                 } catch (ConnectException e) {
                     Thread.sleep(2000);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
                 }
 
             } else if (ctBulk != null && ctExpress != null) {
@@ -944,7 +949,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                     }
 
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
                 }
             }
         }

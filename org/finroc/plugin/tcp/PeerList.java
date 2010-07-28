@@ -22,13 +22,17 @@
 package org.finroc.plugin.tcp;
 
 import org.finroc.jc.annotation.Elems;
+import org.finroc.jc.annotation.InCpp;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.SizeT;
 import org.finroc.jc.container.SimpleList;
+import org.finroc.jc.log.LogDefinitions;
 import org.finroc.jc.net.IPAddress;
 import org.finroc.jc.net.IPSocketAddress;
 import org.finroc.jc.stream.InputStreamBuffer;
 import org.finroc.jc.stream.OutputStreamBuffer;
+import org.finroc.log.LogDomain;
+import org.finroc.log.LogLevel;
 
 import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.port.net.AbstractPeerTracker;
@@ -52,6 +56,10 @@ public class PeerList extends AbstractPeerTracker {
 
     /** Server port of own peer */
     private final int serverPort;
+
+    /** Log domain for this class */
+    @InCpp("_CREATE_NAMED_LOGGING_DOMAIN(logDomain, \"tcp\");")
+    public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /** @param serverPort Server port of own peer */
     public PeerList(int serverPort, int lockOrder) {
@@ -83,7 +91,7 @@ public class PeerList extends AbstractPeerTracker {
             synchronized (this) {
                 add = !peers.contains(isa);
                 if (add) {
-                    System.out.println("received new peer: " + isa.toString());
+                    log(LogLevel.LL_DEBUG, logDomain, "received new peer: " + isa.toString());
                     peers.add(isa);
                 }
             }

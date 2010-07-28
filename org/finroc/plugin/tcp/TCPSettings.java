@@ -94,8 +94,8 @@ public class TCPSettings extends Settings {
         inst.add("Critical Ping Threshold", 1500, true, Unit.ms, new Bounds(50, 20000, Constant.NO_MAX_TIME_LIMIT));
 
     /** Debug Settings */
-    static final BoolSetting DISPLAY_INCOMING_TCP_SERVER_COMMANDS = inst.add("DISPLAY_INCOMING_TCP_SERVER_COMMANDS", true, true);
-    static final BoolSetting DISPLAY_INCOMING_PORT_UPDATES = inst.add("DISPLAY_INCOMING_TCP_SERVER_COMMANDS", false, true);
+    //static final BoolSetting DISPLAY_INCOMING_TCP_SERVER_COMMANDS = inst.add("DISPLAY_INCOMING_TCP_SERVER_COMMANDS", true, true);
+    //static final BoolSetting DISPLAY_INCOMING_PORT_UPDATES = inst.add("DISPLAY_INCOMING_TCP_SERVER_COMMANDS", false, true);
 
     private TCPSettings() {
         super("TCP Settings", "tcp", true);

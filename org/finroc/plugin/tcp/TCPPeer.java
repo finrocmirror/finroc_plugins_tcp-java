@@ -22,12 +22,16 @@
 package org.finroc.plugin.tcp;
 
 import org.finroc.jc.ArrayWrapper;
+import org.finroc.jc.annotation.InCpp;
 import org.finroc.jc.annotation.InCppFile;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.SizeT;
 import org.finroc.jc.container.SafeConcurrentlyIterableList;
 import org.finroc.jc.container.SimpleList;
+import org.finroc.jc.log.LogDefinitions;
 import org.finroc.jc.net.IPSocketAddress;
+import org.finroc.log.LogDomain;
+import org.finroc.log.LogLevel;
 import org.finroc.core.ChildIterator;
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
@@ -77,6 +81,10 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
 
     /** All active connections connected to this peer */
     public SafeConcurrentlyIterableList<TCPConnection> connections = new SafeConcurrentlyIterableList<TCPConnection>(10, 4);
+
+    /** Log domain for this class */
+    @InCpp("_CREATE_NAMED_LOGGING_DOMAIN(logDomain, \"tcp\");")
+    public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /**
      * Constructor for client connections
@@ -145,7 +153,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
         try {
             disconnect();
         } catch (Exception e) {
-            e.printStackTrace();
+            log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
         }
         if (tracker != null) {
             tracker.delete();
@@ -184,7 +192,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
                     return rs;
                 }
             }
-            System.out.println("TCPClient warning: Node " + name + " not found");
+            log(LogLevel.LL_WARNING, logDomain, "TCPClient warning: Node " + name + " not found");
             return null;
         }
     }

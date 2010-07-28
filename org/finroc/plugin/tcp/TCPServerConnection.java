@@ -34,6 +34,7 @@ import org.finroc.jc.net.NetSocket;
 import org.finroc.jc.stream.ChunkedBuffer;
 import org.finroc.jc.stream.LargeIntermediateStreamBuffer;
 import org.finroc.jc.thread.ThreadUtil;
+import org.finroc.log.LogLevel;
 
 import org.finroc.core.ChildIterator;
 import org.finroc.core.CoreFlags;
@@ -201,9 +202,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
 
             //long timestamp = readTimestamp();
             p = getPort(handle, true);
-            if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-                System.out.println("Incoming Server Command: Set " + (p != null ? p.localPort.getQualifiedName() : handle));
-            }
+            log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Set " + (p != null ? p.localPort.getQualifiedName() : handle));
             if (p != null) {
                 synchronized (p.getPort()) {
                     if (!p.getPort().isReady()) {
@@ -224,9 +223,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
 
             handle = cis.readInt();
             p = getPort(handle, false);
-            if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-                System.out.println("Incoming Server Command: Unsubscribe " + (p != null ? p.localPort.getQualifiedName() : handle));
-            }
+            log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Unsubscribe " + (p != null ? p.localPort.getQualifiedName() : handle));
             if (p != null && p.getPort().isReady()) { // complete disconnect
                 p.managedDelete();
             }
@@ -243,9 +240,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             short updateInterval = cis.readShort();
             int remoteHandle = cis.readInt();
             p = getPort(handle, true);
-            if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-                System.out.println("Incoming Server Command: Subscribe " + (p != null ? p.localPort.getQualifiedName() : handle) + " " + strategy + " " + reversePush + " " + updateInterval + " " + remoteHandle);
-            }
+            log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Subscribe " + (p != null ? p.localPort.getQualifiedName() : handle) + " " + strategy + " " + reversePush + " " + updateInterval + " " + remoteHandle);
             if (p != null) {
                 synchronized (p.getPort().getRegistryLock()) {
                     if (p.getPort().isReady()) {

@@ -21,6 +21,8 @@
  */
 package org.finroc.plugin.tcp;
 
+import org.finroc.jc.log.LogDefinitions;
+import org.finroc.jc.log.LogUser;
 import org.finroc.jc.net.EOFException;
 import org.finroc.jc.net.IPAddress;
 
@@ -46,6 +48,8 @@ import org.finroc.jc.container.Reusable;
 import org.finroc.jc.container.SafeConcurrentlyIterableList;
 import org.finroc.jc.container.WonderQueue;
 import org.finroc.jc.net.NetSocket;
+import org.finroc.log.LogDomain;
+import org.finroc.log.LogLevel;
 
 import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeSettings;
@@ -73,7 +77,7 @@ import org.finroc.core.thread.CoreLoopThreadBase;
  * (writer and listener members need to be initialized by subclass)
  */
 @Friend(TCPPort.class)
-public abstract class TCPConnection implements UpdateTimeChangeListener {
+public abstract class TCPConnection extends LogUser implements UpdateTimeChangeListener {
 
     /** Network Socket used for accessing remote Server */
     protected NetSocket socket;
@@ -142,6 +146,10 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
     /** Needs to be locked after framework elements, but before runtime registry */
     public final MutexLockOrder objMutex = new MutexLockOrder(LockOrderLevels.REMOTE + 1);
 
+    /** Log domain for this class */
+    @InCpp("_CREATE_NAMED_LOGGING_DOMAIN(logDomain, \"tcp\");")
+    public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
+
     /**
      * @param type Connection type
      * @param peer TCPPeer that this connection belongs to (null if it does not belong to a peer)
@@ -205,10 +213,7 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
                 lockedWriter.join();
                 writer = null;
             } catch (InterruptedException e) {
-                //JavaOnlyBlock
-                e.printStackTrace();
-
-                //Cpp _printf("warning: TCPConnection::disconnect() - Interrupted waiting for writer thread.\n");
+                log(LogLevel.LL_WARNING, logDomain, "warning: TCPConnection::disconnect() - Interrupted waiting for writer thread.");
             }
         }
         @InCpp("::std::tr1::shared_ptr<Reader> lockedReader = reader._lock();")
@@ -218,10 +223,7 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
                 lockedReader.join();
                 reader = null;
             } catch (InterruptedException e) {
-                //JavaOnlyBlock
-                e.printStackTrace();
-
-                //Cpp _printf("warning: TCPConnection::disconnect() - Interrupted waiting for reader thread.\n");
+                log(LogLevel.LL_WARNING, logDomain, "warning: TCPConnection::disconnect() - Interrupted waiting for reader thread.");
             }
         }
     }
@@ -334,19 +336,19 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
                     e = (Exception)e.getCause();
                 }
                 if (!(e instanceof EOFException || e instanceof SocketException || e instanceof java.io.IOException)) {
-                    e.printStackTrace();
+                    log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
                 }
 
                 /*Cpp
                 if (typeid(e) != typeid(finroc::util::EOFException) && typeid(e) != typeid(finroc::util::IOException)) {
-                    e.printStackTrace();
+                    _FINROC_LOG_STREAM(rrlib::logging::eLL_DEBUG_WARNING, logDomain) << e;
                 }
                  */
             }
             try {
                 handleDisconnect();
             } catch (Exception e) {
-                e.printStackTrace();
+                log(LogLevel.LL_WARNING, logDomain, e);
             }
 
             try {
@@ -466,7 +468,7 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
                             try {
                                 handleDisconnect();
                             } catch (Exception e) {
-                                e.printStackTrace();
+                                log(LogLevel.LL_WARNING, logDomain, e);
                             }
                             //cleanShutdown();
                             return;
@@ -545,15 +547,15 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
                     e = (Exception)e.getCause();
                 }
                 if (!(e instanceof SocketException)) {
-                    e.printStackTrace();
+                    log(LogLevel.LL_WARNING, logDomain, e);
                 }
 
-                //Cpp e.printStackTrace();
+                //Cpp _FINROC_LOG_STREAM(rrlib::logging::eLL_WARNING, logDomain) << e;
 
                 try {
                     handleDisconnect();
                 } catch (Exception e2) {
-                    e2.printStackTrace();
+                    log(LogLevel.LL_WARNING, logDomain, e2);
                 }
             }
 
@@ -864,14 +866,12 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
                 cis.setBufferSource(null);
 
                 // debug output
-                if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-                    System.out.println("Incoming Server Command: Pull return call " + (port != null ? port.getPort().getQualifiedName() : handle) + " status: " + pc.getStatusString());
-                }
+                log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Pull return call " + (port != null ? port.getPort().getQualifiedName() : handle) + " status: " + pc.getStatusString());
 
                 // Returning call
                 pc.deserializeParamaters();
             } catch (Exception e) {
-                e.printStackTrace();
+                log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
                 pc.recycle();
                 pc = null;
             }
@@ -904,9 +904,7 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
         }
 
         // process call
-        if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-            System.out.println("Incoming Server Command to port '" + (port != null ? port.getPort().getQualifiedName() : handle) + "': " + pc.toString());
-        }
+        log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command to port '" + (port != null ? port.getPort().getQualifiedName() : handle) + "': " + pc.toString());
 
         if (port == null || (!port.getPort().isReady())) {
             pc.setExceptionStatus(MethodCallException.Type.NO_CONNECTION);
@@ -967,9 +965,7 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
             cis.setBufferSource(null);
 
             // process call
-            if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-                System.out.println("Incoming Server Command: Method call " + (port != null ? port.getPort().getQualifiedName() : handle));
-            }
+            log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Method call " + (port != null ? port.getPort().getQualifiedName() : handle));
             if (skipCall) {
                 mc.setExceptionStatus(MethodCallException.Type.NO_CONNECTION);
                 mc.setRemotePortHandle(remoteHandle);
@@ -1025,9 +1021,7 @@ public abstract class TCPConnection implements UpdateTimeChangeListener {
             cis.setBufferSource(null);
 
             // process call
-            if (TCPSettings.DISPLAY_INCOMING_TCP_SERVER_COMMANDS.get()) {
-                System.out.println("Incoming Server Command: Method call return " + (port != null ? port.getPort().getQualifiedName() : handle));
-            }
+            log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Method call return " + (port != null ? port.getPort().getQualifiedName() : handle));
 
             // process call
             port.handleCallReturnFromNet(mc);

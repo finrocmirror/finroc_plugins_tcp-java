@@ -24,11 +24,15 @@ package org.finroc.plugin.tcp;
 import org.finroc.jc.annotation.CppInclude;
 import org.finroc.jc.annotation.CppUnused;
 import org.finroc.jc.annotation.ForwardDecl;
+import org.finroc.jc.annotation.InCpp;
 import org.finroc.jc.annotation.Managed;
 import org.finroc.jc.annotation.Ptr;
+import org.finroc.jc.log.LogDefinitions;
 import org.finroc.jc.net.IOException;
 import org.finroc.jc.net.NetSocket;
 import org.finroc.jc.net.TCPConnectionHandler;
+import org.finroc.log.LogDomain;
+import org.finroc.log.LogLevel;
 
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
@@ -58,6 +62,10 @@ public class TCPServer extends FrameworkElement implements org.finroc.jc.net.TCP
     /** Peer that this server belongs to */
     private final TCPPeer peer;
 
+    /** Log domain for this class */
+    @InCpp("_CREATE_NAMED_LOGGING_DOMAIN(logDomain, \"tcp\");")
+    public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
+
     /**
      * @param port Port Server runs on
      * @param tryNextPortsIfOccupied Try the following ports, if specified port is already occupied?
@@ -85,7 +93,7 @@ public class TCPServer extends FrameworkElement implements org.finroc.jc.net.TCP
             if (serving || (!tryNextPortsIfOccupied)) {
                 break;
             }
-            System.out.println("Port " + port + " occupied - trying " + (port + 1));
+            log(LogLevel.LL_USER, logDomain, "Port " + port + " occupied - trying " + (port + 1));
             port++;
         }
 
@@ -98,7 +106,7 @@ public class TCPServer extends FrameworkElement implements org.finroc.jc.net.TCP
             try {
                 s.close();
             } catch (IOException e) {
-                e.printStackTrace();
+                log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
             }
             return;
         }
@@ -106,7 +114,7 @@ public class TCPServer extends FrameworkElement implements org.finroc.jc.net.TCP
             @SuppressWarnings("unused") @CppUnused
             @Ptr @Managed TCPServerConnection connection = new TCPServerConnection(s, firstByte, this, peer);
         } catch (Exception e) {
-            e.printStackTrace();
+            log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
         }
     }
 
