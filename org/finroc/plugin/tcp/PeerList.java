@@ -58,7 +58,7 @@ public class PeerList extends AbstractPeerTracker {
     private final int serverPort;
 
     /** Log domain for this class */
-    @InCpp("_CREATE_NAMED_LOGGING_DOMAIN(logDomain, \"tcp\");")
+    @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /** @param serverPort Server port of own peer */

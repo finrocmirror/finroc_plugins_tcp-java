@@ -147,7 +147,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
     public final MutexLockOrder objMutex = new MutexLockOrder(LockOrderLevels.REMOTE + 1);
 
     /** Log domain for this class */
-    @InCpp("_CREATE_NAMED_LOGGING_DOMAIN(logDomain, \"tcp\");")
+    @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /**
@@ -341,7 +341,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
 
                 /*Cpp
                 if (typeid(e) != typeid(finroc::util::EOFException) && typeid(e) != typeid(finroc::util::IOException)) {
-                    _FINROC_LOG_STREAM(rrlib::logging::eLL_DEBUG_WARNING, logDomain) << e;
+                    _FINROC_LOG_STREAM(rrlib::logging::eLL_DEBUG_WARNING, logDomain, e);
                 }
                  */
             }
@@ -550,7 +550,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                     log(LogLevel.LL_WARNING, logDomain, e);
                 }
 
-                //Cpp _FINROC_LOG_STREAM(rrlib::logging::eLL_WARNING, logDomain) << e;
+                //Cpp _FINROC_LOG_STREAM(rrlib::logging::eLL_WARNING, logDomain, e);
 
                 try {
                     handleDisconnect();

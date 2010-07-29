@@ -63,7 +63,7 @@ public class TCPServer extends FrameworkElement implements org.finroc.jc.net.TCP
     private final TCPPeer peer;
 
     /** Log domain for this class */
-    @InCpp("_CREATE_NAMED_LOGGING_DOMAIN(logDomain, \"tcp\");")
+    @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /**

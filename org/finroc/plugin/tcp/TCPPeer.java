@@ -83,7 +83,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     public SafeConcurrentlyIterableList<TCPConnection> connections = new SafeConcurrentlyIterableList<TCPConnection>(10, 4);
 
     /** Log domain for this class */
-    @InCpp("_CREATE_NAMED_LOGGING_DOMAIN(logDomain, \"tcp\");")
+    @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /**

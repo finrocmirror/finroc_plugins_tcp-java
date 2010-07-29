@@ -130,7 +130,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
     private boolean deletedSoon = false;
 
     /** Log domain for this class */
-    @InCpp("_CREATE_NAMED_LOGGING_DOMAIN(logDomain, \"tcp\");")
+    @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /**
@@ -339,11 +339,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         try {
             connectorThread.join();
         } catch (InterruptedException e) {
-
-            //JavaOnlyBlock
-            log(LogLevel.LL_WARNING, logDomain, e);
-
-            //Cpp _FINROC_LOG_STREAM(rrlib::logging::eLL_WARNING, logDomain) << "warning: RemoteServer::prepareDelete() - Interrupted waiting for connector thread.";
+            log(LogLevel.LL_WARNING, logDomain, "warning: RemoteServer::prepareDelete() - Interrupted waiting for connector thread.");
         }
         log(LogLevel.LL_DEBUG, logDomain, "RemoteServer: Disconnecting");
         disconnect();
