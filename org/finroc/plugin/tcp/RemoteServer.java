@@ -21,6 +21,9 @@
  */
 package org.finroc.plugin.tcp;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.finroc.jc.AtomicInt;
 import org.finroc.jc.Time;
 import org.finroc.jc.annotation.AtFront;
@@ -28,11 +31,13 @@ import org.finroc.jc.annotation.Const;
 import org.finroc.jc.annotation.CppInclude;
 import org.finroc.jc.annotation.Friend;
 import org.finroc.jc.annotation.InCpp;
+import org.finroc.jc.annotation.JavaOnly;
 import org.finroc.jc.annotation.PassByValue;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.Ref;
 import org.finroc.jc.annotation.SharedPtr;
 import org.finroc.jc.annotation.SizeT;
+import org.finroc.jc.container.SimpleList;
 import org.finroc.jc.log.LogDefinitions;
 import org.finroc.jc.net.ConnectException;
 import org.finroc.jc.net.IOException;
@@ -308,7 +313,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                 }
             }
 
-        } else if (info.opCode == RuntimeListener.CHANGE) {
+        } else if (info.opCode == RuntimeListener.CHANGE || info.opCode == RuntimeListener.EDGE_CHANGE) {
 
             // we're dealing with an existing framework element
             assert(fe != null || port != null);
@@ -438,7 +443,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
 
         /** Constructor for yet anonymous element */
         public ProxyFrameworkElement(int handle, int extraFlags, int lockOrder) {
-            super("(yet unknown)", null, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | (extraFlags & FrameworkElementInfo.PARENT_FLAGS_TO_STORE), lockOrder);
+            super("(yet unknown)", null, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | FrameworkElementInfo.filterParentFlags(extraFlags), lockOrder);
             this.remoteHandle = handle;
             remoteElementRegister.put(-remoteHandle, this);
             yetUnknown = true;
@@ -509,6 +514,10 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         /** Update time of current subscription */
         private short subscriptionUpdateTime = -1;
 
+        /** Handles (remote) of port's outgoing connections */
+        @JavaOnly
+        protected SimpleList<Integer> connections = new SimpleList<Integer>();
+
         /**
          * Is port the one that is described by this information?
          *
@@ -570,7 +579,10 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                 getPort().setMinNetUpdateInterval(portInfo.getMinNetUpdateInterval());
                 updateIntervalPartner = portInfo.getMinNetUpdateInterval(); // TODO redundant?
                 propagateStrategyFromTheNet(portInfo.getStrategy());
+
+                //JavaOnlyBlock
                 portInfo.getConnections(connections);
+
                 log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Updating port info: " + portInfo.toString());
                 if (portInfo.opCode == RuntimeListener.ADD) {
                     assert(!getPort().isReady());
@@ -659,6 +671,18 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                     subscriptionUpdateTime = time;
                 }
             }
+        }
+
+        @Override @JavaOnly
+        public List<FrameworkElement> getRemoteEdgeDestinations() {
+            ArrayList<FrameworkElement> result = new ArrayList<FrameworkElement>();
+            for (int i = 0; i < connections.size(); i++) {
+                ProxyPort pp = remotePortRegister.get(connections.get(i));
+                if (pp != null) {
+                    result.add(pp.getPort());
+                }
+            }
+            return result;
         }
     }
 

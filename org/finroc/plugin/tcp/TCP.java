@@ -76,6 +76,9 @@ public class TCP implements Plugin, HasDestructor, CreateExternalConnectionActio
     /** Alternative TCP connection creator */
     private final TCPLightweigtFlat creator2 = new TCPLightweigtFlat();
 
+    /** Complete TCP connection creator */
+    private final TCPCompleteInfo creator3 = new TCPCompleteInfo();
+
     /**
      * @return Unused TCP Command
      */
@@ -93,6 +96,7 @@ public class TCP implements Plugin, HasDestructor, CreateExternalConnectionActio
     public void init(PluginManager mgr) {
         Plugins.getInstance().registerExternalConnection(this);
         Plugins.getInstance().registerExternalConnection(creator2);
+        Plugins.getInstance().registerExternalConnection(creator3);
     }
 
     @Override
@@ -106,6 +110,11 @@ public class TCP implements Plugin, HasDestructor, CreateExternalConnectionActio
     public ExternalConnection createExternalConnection() throws Exception {
         //return new TCPClient(new FrameworkElementTreeFilter(CoreFlags.STATUS_FLAGS | CoreFlags.NETWORK_ELEMENT, CoreFlags.READY | CoreFlags.PUBLISHED));
         return new TCPPeer(DEFAULT_CONNECTION_NAME, TCPPeer.GUI_FILTER);
+    }
+
+    @Override
+    public int getFlags() {
+        return 0;
     }
 
     /**
@@ -122,5 +131,32 @@ public class TCP implements Plugin, HasDestructor, CreateExternalConnectionActio
         public String toString() {
             return "TCP - port only";
         }
+
+        @Override
+        public int getFlags() {
+            return 0;
+        }
     }
+
+    /**
+     * Full TCP connection creator
+     */
+    @AtFront @PassByValue
+    private class TCPCompleteInfo implements CreateExternalConnectionAction {
+
+        @Override @InCppFile
+        public ExternalConnection createExternalConnection() throws Exception {
+            return new TCPPeer(DEFAULT_CONNECTION_NAME, TCPPeer.ALL_AND_EDGE_FILTER);
+        }
+
+        public String toString() {
+            return "TCP - everything - including edges";
+        }
+
+        @Override
+        public int getFlags() {
+            return CreateExternalConnectionAction.REMOTE_EDGE_INFO;
+        }
+    }
+
 }

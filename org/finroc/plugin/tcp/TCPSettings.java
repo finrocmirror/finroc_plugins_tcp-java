@@ -26,7 +26,6 @@ import org.finroc.core.RuntimeSettings;
 import org.finroc.core.datatype.Bounds;
 import org.finroc.core.datatype.Constant;
 import org.finroc.core.datatype.Unit;
-import org.finroc.core.setting.BoolSetting;
 import org.finroc.core.setting.IntSetting;
 import org.finroc.core.setting.Settings;
 

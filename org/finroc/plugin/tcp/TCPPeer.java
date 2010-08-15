@@ -78,6 +78,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     /** TreeFilter for different applications */
     public static final FrameworkElementTreeFilter GUI_FILTER = new FrameworkElementTreeFilter(CoreFlags.STATUS_FLAGS | CoreFlags.NETWORK_ELEMENT, CoreFlags.READY | CoreFlags.PUBLISHED);
     public static final FrameworkElementTreeFilter DEFAULT_FILTER = new FrameworkElementTreeFilter(CoreFlags.STATUS_FLAGS | CoreFlags.NETWORK_ELEMENT | CoreFlags.SHARED | CoreFlags.IS_PORT, CoreFlags.READY | CoreFlags.PUBLISHED | CoreFlags.SHARED | CoreFlags.IS_PORT);
+    public static final FrameworkElementTreeFilter ALL_AND_EDGE_FILTER = new FrameworkElementTreeFilter(CoreFlags.STATUS_FLAGS, CoreFlags.READY | CoreFlags.PUBLISHED);
 
     /** All active connections connected to this peer */
     public SafeConcurrentlyIterableList<TCPConnection> connections = new SafeConcurrentlyIterableList<TCPConnection>(10, 4);

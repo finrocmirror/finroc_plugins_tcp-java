@@ -21,11 +21,15 @@
  */
 package org.finroc.plugin.tcp;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.finroc.jc.ArrayWrapper;
 import org.finroc.jc.AtomicInt;
 import org.finroc.jc.MutexLockOrder;
 import org.finroc.jc.Time;
 import org.finroc.jc.annotation.Friend;
+import org.finroc.jc.annotation.JavaOnly;
 import org.finroc.jc.annotation.PassByValue;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.SharedPtr;
@@ -269,6 +273,9 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     @Override
     public void runtimeChange(byte changeType, FrameworkElement element) {
         if (element != RuntimeEnvironment.getInstance() && elementFilter.accept(element, tmp) && changeType != RuntimeListener.PRE_INIT) {
+            if (changeType == EDGE_CHANGE && (!elementFilter.isAcceptAllFilter())) {
+                return;
+            }
             runtimeInfoWriter.writeByte(TCP.PORT_UPDATE);
             FrameworkElementInfo.serializeFrameworkElement(element, changeType, runtimeInfoWriter, elementFilter, tmp);
             if (TCPSettings.DEBUG_TCP) {
@@ -450,6 +457,12 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         @Override
         protected void propagateStrategyOverTheNet() {
             // data is propagated automatically with port strategy changed in framework element class
+        }
+
+        @Override @JavaOnly
+        public List<FrameworkElement> getRemoteEdgeDestinations() {
+            log(LogLevel.LL_DEBUG_WARNING, logDomain, "remote server ports have no info on remote edges");
+            return new ArrayList<FrameworkElement>();
         }
     }
 
