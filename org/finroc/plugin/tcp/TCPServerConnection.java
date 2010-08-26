@@ -460,9 +460,9 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         }
 
         @Override @JavaOnly
-        public List<FrameworkElement> getRemoteEdgeDestinations() {
+        public List<AbstractPort> getRemoteEdgeDestinations() {
             log(LogLevel.LL_DEBUG_WARNING, logDomain, "remote server ports have no info on remote edges");
-            return new ArrayList<FrameworkElement>();
+            return new ArrayList<AbstractPort>();
         }
     }
 

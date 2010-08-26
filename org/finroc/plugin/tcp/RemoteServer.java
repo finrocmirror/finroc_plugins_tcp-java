@@ -674,8 +674,8 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         }
 
         @Override @JavaOnly
-        public List<FrameworkElement> getRemoteEdgeDestinations() {
-            ArrayList<FrameworkElement> result = new ArrayList<FrameworkElement>();
+        public List<AbstractPort> getRemoteEdgeDestinations() {
+            ArrayList<AbstractPort> result = new ArrayList<AbstractPort>();
             for (int i = 0; i < connections.size(); i++) {
                 ProxyPort pp = remotePortRegister.get(connections.get(i));
                 if (pp != null) {
