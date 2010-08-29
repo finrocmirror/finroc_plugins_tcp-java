@@ -184,7 +184,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
             // remove port & disconnect
             ci.reset();
             for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
-                if (fe == server) {
+                if (fe == server || fe.isPort()) {
                     continue;
                 }
                 RemoteServer rs = (RemoteServer)fe;
@@ -327,7 +327,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
         float worst = 1.0f;
         ChildIterator ci = new ChildIterator(this);
         for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
-            if (fe == server) {
+            if (fe == server || fe.isPort()) {
                 continue;
             }
             RemoteServer rs = (RemoteServer)fe;
@@ -347,7 +347,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
             SimpleList<String> addStuff = new SimpleList<String>();
             ChildIterator ci = new ChildIterator(this);
             for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
-                if (fe == server || (!fe.isReady())) {
+                if (fe == server || (!fe.isReady()) || fe.isPort()) {
                     continue;
                 }
                 RemoteServer rs = (RemoteServer)fe;
@@ -367,5 +367,12 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
             }
             return s + ")";
         }
+    }
+
+    /**
+     * @return Is this a connection/client used for administration?
+     */
+    public boolean isAdminConnection() {
+        return filter.isAcceptAllFilter();
     }
 }

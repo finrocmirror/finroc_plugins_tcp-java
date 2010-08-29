@@ -55,6 +55,8 @@ import org.finroc.core.FrameworkElementTreeFilter;
 import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.RuntimeListener;
+import org.finroc.core.admin.AdminClient;
+import org.finroc.core.admin.AdminServer;
 import org.finroc.core.buffer.CoreInput;
 import org.finroc.core.buffer.CoreOutput;
 import org.finroc.core.datatype.FrameworkElementInfo;
@@ -134,6 +136,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
     /** Set to true when server will soon be deleted */
     private boolean deletedSoon = false;
 
+    /** Administration interface client port */
+    private final AdminClient adminInterface;
+
     /** Log domain for this class */
     @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
@@ -151,6 +156,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         this.peer = peer;
         globalLinks = filter.isPortOnlyFilter() ? new FrameworkElement("global", this, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | CoreFlags.GLOBALLY_UNIQUE_LINK | CoreFlags.ALTERNATE_LINK_ROOT, -1) : null;
         address = isa;
+        adminInterface = filter.isAcceptAllFilter() ? new AdminClient("AdminClient " + getDescription(), peer) : null;
         RuntimeEnvironment.getInstance().addListener(this);
         connectorThread = ThreadUtil.getThreadSharedPtr(new ConnectorThread());
         connectorThread.start();
@@ -231,7 +237,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         // retrieve initial port information
         while (cis.readByte() != 0) {
             tmpInfo.deserialize(cis, typeLookup);
-            //System.out.println("Received info: " + tmpInfo.toString());
             processPortUpdate(tmpInfo);
         }
         init();
@@ -258,6 +263,8 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
      */
     private void processPortUpdate(@Ref FrameworkElementInfo info) {
 
+        logDomain.log(LogLevel.LL_DEBUG_VERBOSE_2, getLogDescription(), "Received updated FrameworkElementInfo: " + tmpInfo.toString());
+
         // these variables will store element to update
         ProxyFrameworkElement fe = null;
         ProxyPort port = null;
@@ -277,7 +284,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                     return;
                 }
 
-                if (port != null && port.remoteHandle != info.getHandle()) {
+                if (port != null && port.getRemoteHandle() != info.getHandle()) {
                     port.managedDelete();
                     port = null;
                 }
@@ -346,6 +353,11 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         } catch (InterruptedException e) {
             log(LogLevel.LL_WARNING, logDomain, "warning: RemoteServer::prepareDelete() - Interrupted waiting for connector thread.");
         }
+
+        if (adminInterface != null && adminInterface.isReady()) {
+            adminInterface.managedDelete();
+        }
+
         log(LogLevel.LL_DEBUG, logDomain, "RemoteServer: Disconnecting");
         disconnect();
 
@@ -684,6 +696,11 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
             }
             return result;
         }
+
+        @Override
+        public AdminClient getAdminInterface() {
+            return adminInterface;
+        }
     }
 
     /**
@@ -773,6 +790,14 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                 }*/
                 log(LogLevel.LL_DEBUG, logDomain, (newServer ? "Connecting" : "Reconnecting") + " to server " + socket_.getRemoteSocketAddress().toString() + "...");
                 retrieveRemotePorts(cis, cos, updateTimes, newServer);
+
+                // connect to admin interface?
+                if (adminInterface != null) {
+                    FrameworkElement fe = getChildElement(AdminServer.QUALIFIED_PORT_NAME, false);
+                    if (fe != null && fe.isPort() && fe.isReady()) {
+                        ((AbstractPort)fe).connectToTarget(adminInterface);
+                    }
+                }
             }
 
             // start incoming data listener thread

@@ -47,6 +47,7 @@ import org.finroc.core.FrameworkElementTreeFilter;
 import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.RuntimeListener;
+import org.finroc.core.admin.AdminClient;
 import org.finroc.core.buffer.CoreInput;
 import org.finroc.core.buffer.CoreOutput;
 import org.finroc.core.datatype.FrameworkElementInfo;
@@ -463,6 +464,11 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         public List<AbstractPort> getRemoteEdgeDestinations() {
             log(LogLevel.LL_DEBUG_WARNING, logDomain, "remote server ports have no info on remote edges");
             return new ArrayList<AbstractPort>();
+        }
+
+        @Override
+        public AdminClient getAdminInterface() {
+            return null;
         }
     }
 
