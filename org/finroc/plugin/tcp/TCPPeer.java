@@ -24,6 +24,7 @@ package org.finroc.plugin.tcp;
 import org.finroc.jc.ArrayWrapper;
 import org.finroc.jc.annotation.InCpp;
 import org.finroc.jc.annotation.InCppFile;
+import org.finroc.jc.annotation.IncludeClass;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.SizeT;
 import org.finroc.jc.container.SafeConcurrentlyIterableList;
@@ -49,6 +50,7 @@ import org.finroc.core.port.net.AbstractPeerTracker;
  * TODO: improve this (client and server should use the same TCPConnections
  * to communicate with another peer).
  */
+@IncludeClass(TCPConnection.class)
 public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.Listener {
 
     /** Modes for TCP Peer */

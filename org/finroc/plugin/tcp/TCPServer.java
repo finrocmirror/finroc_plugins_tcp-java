@@ -23,7 +23,6 @@ package org.finroc.plugin.tcp;
 
 import org.finroc.jc.annotation.CppInclude;
 import org.finroc.jc.annotation.CppUnused;
-import org.finroc.jc.annotation.ForwardDecl;
 import org.finroc.jc.annotation.InCpp;
 import org.finroc.jc.annotation.Managed;
 import org.finroc.jc.annotation.Ptr;
@@ -46,7 +45,6 @@ import org.finroc.core.LockOrderLevels;
  * Module to provide local ports to other robots using a P2P-TCP based
  * communication mechanism.
  */
-@ForwardDecl(TCPPeer.class)
 @CppInclude("TCPPeer.h")
 public class TCPServer extends FrameworkElement implements org.finroc.jc.net.TCPServer {
 
@@ -93,7 +91,8 @@ public class TCPServer extends FrameworkElement implements org.finroc.jc.net.TCP
             if (serving || (!tryNextPortsIfOccupied)) {
                 break;
             }
-            log(LogLevel.LL_USER, logDomain, "Port " + port + " occupied - trying " + (port + 1));
+            int nextPort = port + 1;
+            log(LogLevel.LL_USER, logDomain, "Port " + port + " occupied - trying " + nextPort);
             port++;
         }
 

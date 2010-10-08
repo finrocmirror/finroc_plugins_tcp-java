@@ -65,6 +65,8 @@ import org.finroc.core.port.PortCreationInfo;
 import org.finroc.core.port.PortFlags;
 import org.finroc.core.port.net.NetPort;
 import org.finroc.core.port.net.RemoteCoreRegister;
+import org.finroc.core.port.net.RemoteHandleLookup;
+import org.finroc.core.port.net.RemoteRuntime;
 import org.finroc.core.port.net.RemoteTypes;
 import org.finroc.core.portdatabase.DataTypeRegister;
 import org.finroc.core.thread.CoreLoopThreadBase;
@@ -83,7 +85,7 @@ import org.finroc.core.thread.CoreLoopThreadBase;
  *  - as well as any deleting.
  */
 @CppInclude("rrlib/finroc_core_utils/GarbageCollector.h")
-public class RemoteServer extends FrameworkElement implements RuntimeListener {
+public class RemoteServer extends FrameworkElement implements RuntimeListener, RemoteHandleLookup {
 
     /** Network address */
     private final IPSocketAddress address;
@@ -137,6 +139,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
     private boolean deletedSoon = false;
 
     /** Administration interface client port */
+    @JavaOnly
     private final AdminClient adminInterface;
 
     /** Log domain for this class */
@@ -156,7 +159,11 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
         this.peer = peer;
         globalLinks = filter.isPortOnlyFilter() ? new FrameworkElement("global", this, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | CoreFlags.GLOBALLY_UNIQUE_LINK | CoreFlags.ALTERNATE_LINK_ROOT, -1) : null;
         address = isa;
+
+        //JavaOnlyBlock
         adminInterface = filter.isAcceptAllFilter() ? new AdminClient("AdminClient " + getDescription(), peer) : null;
+        addAnnotation(new RemoteRuntime(adminInterface, null, this));
+
         RuntimeEnvironment.getInstance().addListener(this);
         connectorThread = ThreadUtil.getThreadSharedPtr(new ConnectorThread());
         connectorThread.start();
@@ -354,6 +361,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
             log(LogLevel.LL_WARNING, logDomain, "warning: RemoteServer::prepareDelete() - Interrupted waiting for connector thread.");
         }
 
+        //JavaOnlyBlock
         if (adminInterface != null && adminInterface.isReady()) {
             adminInterface.managedDelete();
         }
@@ -497,6 +505,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
 //              }
                 setDescription(info.getLink(0).name);
                 getFrameworkElement(info.getLink(0).parent, info.getLink(0).extraFlags, false, info.getLink(0).parent).addChild(this);
+            }
+            if ((info.getFlags() & CoreFlags.FINSTRUCTED) > 0) {
+                setFlag(CoreFlags.FINSTRUCTED);
             }
             yetUnknown = false;
         }
@@ -696,11 +707,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
             }
             return result;
         }
-
-        @Override
-        public AdminClient getAdminInterface() {
-            return adminInterface;
-        }
     }
 
     /**
@@ -783,14 +789,10 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
 
             if (bulk) {
                 boolean newServer = (serverCreationTime < 0) || (serverCreationTime != timeBase);
-                /*if (!newServer) {
-                    System.out.print("Re-");
-                } else {
-                    serverCreationTime = timeBase;
-                }*/
                 log(LogLevel.LL_DEBUG, logDomain, (newServer ? "Connecting" : "Reconnecting") + " to server " + socket_.getRemoteSocketAddress().toString() + "...");
                 retrieveRemotePorts(cis, cos, updateTimes, newServer);
 
+                //JavaOnlyBlock
                 // connect to admin interface?
                 if (adminInterface != null) {
                     FrameworkElement fe = getChildElement(AdminServer.QUALIFIED_PORT_NAME, false);
@@ -798,6 +800,10 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
                         ((AbstractPort)fe).connectToTarget(adminInterface);
                     }
                 }
+
+                //JavaOnlyBlock
+                // set remote type in RemoteRuntime Annotation
+                ((RemoteRuntime)getAnnotation(RemoteRuntime.class)).setRemoteTypes(updateTimes);
             }
 
             // start incoming data listener thread
@@ -1114,5 +1120,20 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener {
      */
     public boolean deletedSoon() {
         return deletedSoon;
+    }
+
+    @Override @JavaOnly
+    public Integer getRemoteHandle(FrameworkElement element) {
+        if (element.isPort()) {
+            AbstractPort ap = (AbstractPort)element;
+            NetPort np = ap.asNetPort();
+            if (np != null) {
+                return np.getRemoteHandle();
+            }
+        }
+        if (element instanceof ProxyFrameworkElement) {
+            return ((ProxyFrameworkElement)element).remoteHandle;
+        }
+        return null;
     }
 }

@@ -22,8 +22,6 @@
 package org.finroc.plugin.tcp;
 
 import org.finroc.jc.GarbageCollector;
-import org.finroc.jc.annotation.CppInclude;
-import org.finroc.jc.annotation.ForwardDecl;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.core.RuntimeSettings;
 import org.finroc.core.port.PortCreationInfo;
@@ -38,7 +36,6 @@ import org.finroc.core.port.rpc.SynchMethodCallLogic;
  *
  * NetPort for TCP Connections
  */
-@ForwardDecl(TCPConnection.class) @CppInclude("TCPConnection.h")
 public abstract class TCPPort extends NetPort {
 
     /**

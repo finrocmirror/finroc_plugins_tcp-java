@@ -21,6 +21,9 @@
  */
 package org.finroc.plugin.tcp;
 
+import org.finroc.core.FrameworkElement;
+import org.finroc.core.FrameworkElementTreeFilter;
+import org.finroc.core.parameter.StructureParameterList;
 import org.finroc.core.plugin.CreateExternalConnectionAction;
 import org.finroc.core.plugin.ExternalConnection;
 import org.finroc.core.plugin.Plugin;
@@ -29,6 +32,7 @@ import org.finroc.core.plugin.Plugins;
 import org.finroc.jc.AutoDeleter;
 import org.finroc.jc.HasDestructor;
 import org.finroc.jc.annotation.AtFront;
+import org.finroc.jc.annotation.ForwardDecl;
 import org.finroc.jc.annotation.InCppFile;
 import org.finroc.jc.annotation.PassByValue;
 import org.finroc.jc.annotation.Ptr;
@@ -39,7 +43,8 @@ import org.finroc.jc.container.ReusablesPoolCR;
  *
  * Plugin for P2P TCP connections
  */
-public class TCP implements Plugin, HasDestructor, CreateExternalConnectionAction {
+@ForwardDecl(TCPPeer.class)
+public class TCP implements Plugin, HasDestructor {
 
     /** Singleton instance of TCP plugin */
     static TCP instance;
@@ -73,11 +78,14 @@ public class TCP implements Plugin, HasDestructor, CreateExternalConnectionActio
     /** Pool with Reusable TCP Commands (SUBSCRIBE & UNSUBSCRIBE) */
     @Ptr private static final ReusablesPoolCR<TCPCommand> tcpCommands = AutoDeleter.addStatic(new ReusablesPoolCR<TCPCommand>());
 
+    /** Standard TCP connection creator */
+    private final CreateAction creator1 = new CreateAction(TCPPeer.GUI_FILTER, "TCP", 0);
+
     /** Alternative TCP connection creator */
-    private final TCPLightweigtFlat creator2 = new TCPLightweigtFlat();
+    private final CreateAction creator2 = new CreateAction(TCPPeer.DEFAULT_FILTER, "TCP ports only", 0);
 
     /** Complete TCP connection creator */
-    private final TCPCompleteInfo creator3 = new TCPCompleteInfo();
+    private final CreateAction creator3 = new CreateAction(TCPPeer.ALL_AND_EDGE_FILTER, "TCP admin", CreateExternalConnectionAction.REMOTE_EDGE_INFO);
 
     /**
      * @return Unused TCP Command
@@ -94,7 +102,7 @@ public class TCP implements Plugin, HasDestructor, CreateExternalConnectionActio
 
     @Override
     public void init(PluginManager mgr) {
-        Plugins.getInstance().registerExternalConnection(this);
+        Plugins.getInstance().registerExternalConnection(creator1);
         Plugins.getInstance().registerExternalConnection(creator2);
         Plugins.getInstance().registerExternalConnection(creator3);
     }
@@ -106,57 +114,57 @@ public class TCP implements Plugin, HasDestructor, CreateExternalConnectionActio
         }
     }
 
-    @Override @InCppFile
-    public ExternalConnection createExternalConnection() throws Exception {
-        //return new TCPClient(new FrameworkElementTreeFilter(CoreFlags.STATUS_FLAGS | CoreFlags.NETWORK_ELEMENT, CoreFlags.READY | CoreFlags.PUBLISHED));
-        return new TCPPeer(DEFAULT_CONNECTION_NAME, TCPPeer.GUI_FILTER);
-    }
-
-    @Override
-    public int getFlags() {
-        return 0;
-    }
-
     /**
-     * Alternative TCP connection creator
+     * Class for TCP create-Actions
      */
     @AtFront @PassByValue
-    private class TCPLightweigtFlat implements CreateExternalConnectionAction {
+    private class CreateAction implements CreateExternalConnectionAction {
+
+        /** Filter to used for this connection type */
+        private final FrameworkElementTreeFilter filter;
+
+        /** Name of connection type */
+        private final String name;
+
+        /** Flags to use */
+        private final int flags;
+
+        public CreateAction(FrameworkElementTreeFilter filter, String name, int flags) {
+            this.filter = filter;
+            this.name = name;
+            this.flags = flags;
+        }
+
+        @Override
+        public FrameworkElement createModule(String name, FrameworkElement parent, StructureParameterList params) throws Exception {
+            FrameworkElement result = createExternalConnection();
+            parent.addChild(result);
+            return result;
+        }
+
+        @Override
+        public StructureParameterList getParameterTypes() {
+            return null;
+        }
+
+        @Override
+        public String getModuleGroup() {
+            return "tcp";
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
 
         @Override @InCppFile
         public ExternalConnection createExternalConnection() throws Exception {
-            return new TCPPeer(DEFAULT_CONNECTION_NAME, TCPPeer.DEFAULT_FILTER);
-        }
-
-        public String toString() {
-            return "TCP - port only";
+            return new TCPPeer(DEFAULT_CONNECTION_NAME, filter);
         }
 
         @Override
         public int getFlags() {
-            return 0;
+            return flags;
         }
     }
-
-    /**
-     * Full TCP connection creator
-     */
-    @AtFront @PassByValue
-    private class TCPCompleteInfo implements CreateExternalConnectionAction {
-
-        @Override @InCppFile
-        public ExternalConnection createExternalConnection() throws Exception {
-            return new TCPPeer(DEFAULT_CONNECTION_NAME, TCPPeer.ALL_AND_EDGE_FILTER);
-        }
-
-        public String toString() {
-            return "TCP - everything - including edges";
-        }
-
-        @Override
-        public int getFlags() {
-            return CreateExternalConnectionAction.REMOTE_EDGE_INFO;
-        }
-    }
-
 }

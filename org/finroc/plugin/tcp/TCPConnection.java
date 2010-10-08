@@ -38,6 +38,7 @@ import org.finroc.jc.annotation.Const;
 import org.finroc.jc.annotation.Friend;
 import org.finroc.jc.annotation.InCpp;
 import org.finroc.jc.annotation.InCppFile;
+import org.finroc.jc.annotation.IncludeClass;
 import org.finroc.jc.annotation.PassByValue;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.Ref;
@@ -77,6 +78,7 @@ import org.finroc.core.thread.CoreLoopThreadBase;
  * (writer and listener members need to be initialized by subclass)
  */
 @Friend(TCPPort.class)
+@IncludeClass(TCPPort.class)
 public abstract class TCPConnection extends LogUser implements UpdateTimeChangeListener {
 
     /** Network Socket used for accessing remote Server */
