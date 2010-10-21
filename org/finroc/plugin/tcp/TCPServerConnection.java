@@ -275,16 +275,24 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     @Override
     public void runtimeChange(byte changeType, FrameworkElement element) {
         if (element != RuntimeEnvironment.getInstance() && elementFilter.accept(element, tmp) && changeType != RuntimeListener.PRE_INIT) {
-            if (changeType == EDGE_CHANGE && (!elementFilter.isAcceptAllFilter())) {
-                return;
-            }
-            runtimeInfoWriter.writeByte(TCP.PORT_UPDATE);
-            FrameworkElementInfo.serializeFrameworkElement(element, changeType, runtimeInfoWriter, elementFilter, tmp);
-            if (TCPSettings.DEBUG_TCP) {
-                runtimeInfoWriter.writeInt(TCPSettings.DEBUG_TCP_NUMBER);
-            }
-            runtimeInfoWriter.flush();
-            notifyWriter();
+            serializeRuntimeChange(changeType, element);
+        }
+    }
+
+    public void serializeRuntimeChange(byte changeType, FrameworkElement element) {
+        runtimeInfoWriter.writeByte(TCP.PORT_UPDATE);
+        FrameworkElementInfo.serializeFrameworkElement(element, changeType, runtimeInfoWriter, elementFilter, tmp);
+        if (TCPSettings.DEBUG_TCP) {
+            runtimeInfoWriter.writeInt(TCPSettings.DEBUG_TCP_NUMBER);
+        }
+        runtimeInfoWriter.flush();
+        notifyWriter();
+    }
+
+    @Override
+    public void runtimeEdgeChange(byte changeType, AbstractPort source, AbstractPort target) {
+        if (elementFilter.accept(source, tmp) && elementFilter.isAcceptAllFilter()) {
+            serializeRuntimeChange(FrameworkElementInfo.EDGE_CHANGE, source);
         }
     }
 

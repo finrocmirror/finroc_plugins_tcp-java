@@ -327,7 +327,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 }
             }
 
-        } else if (info.opCode == RuntimeListener.CHANGE || info.opCode == RuntimeListener.EDGE_CHANGE) {
+        } else if (info.opCode == RuntimeListener.CHANGE || info.opCode == FrameworkElementInfo.EDGE_CHANGE) {
 
             // we're dealing with an existing framework element
             assert(fe != null || port != null);
@@ -1017,6 +1017,12 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 ((ProxyPort)np).checkSubscription();
             }
         }
+    }
+
+    @Override
+    public void runtimeEdgeChange(byte changeType, AbstractPort source, AbstractPort target) {
+        runtimeChange(changeType, source);
+        runtimeChange(changeType, target);
     }
 
     /**
