@@ -69,7 +69,7 @@ import org.finroc.core.thread.CoreLoopThreadBase;
  * Thread-safety: Reader thread is the only one that deletes ports while operating. So it can use them without lock.
  */
 @CppInclude("TCPServer.h")
-public final class TCPServerConnection extends TCPConnection implements RuntimeListener, FrameworkElementTreeFilter.Callback {
+public final class TCPServerConnection extends TCPConnection implements RuntimeListener, FrameworkElementTreeFilter.Callback<Boolean> {
 
     /** List with connections for TCP servers in this runtime */
     static final SafeConcurrentlyIterableList<TCPServerConnection> connections = new SafeConcurrentlyIterableList<TCPServerConnection>(4, 4);
@@ -145,7 +145,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
                 sendRuntimeInfo = true;
                 synchronized (RuntimeEnvironment.getInstance().getRegistryLock()) { // lock runtime so that we do not miss a change
                     RuntimeEnvironment.getInstance().addListener(this);
-                    elementFilter.traverseElementTree(RuntimeEnvironment.getInstance(), this, tmp);
+                    elementFilter.traverseElementTree(RuntimeEnvironment.getInstance(), this, null, tmp);
                 }
                 cos.writeByte(0); // terminator
                 cos.flush();
@@ -263,7 +263,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     }
 
     @Override
-    public void treeFilterCallback(FrameworkElement fe) {
+    public void treeFilterCallback(FrameworkElement fe, Boolean unused) {
         if (fe != RuntimeEnvironment.getInstance()) {
             if (!fe.isDeleted()) {
                 cos.writeByte(TCP.PORT_UPDATE);
