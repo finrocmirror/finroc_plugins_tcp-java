@@ -23,6 +23,7 @@ package org.finroc.plugin.tcp;
 
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElementTreeFilter;
+import org.finroc.core.parameter.ConstructorParameters;
 import org.finroc.core.parameter.StructureParameterList;
 import org.finroc.core.plugin.CreateExternalConnectionAction;
 import org.finroc.core.plugin.ExternalConnection;
@@ -136,7 +137,7 @@ public class TCP implements Plugin, HasDestructor {
         }
 
         @Override
-        public FrameworkElement createModule(String name, FrameworkElement parent, StructureParameterList params) throws Exception {
+        public FrameworkElement createModule(String name, FrameworkElement parent, ConstructorParameters params) throws Exception {
             FrameworkElement result = createExternalConnection();
             parent.addChild(result);
             return result;
