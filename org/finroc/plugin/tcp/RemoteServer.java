@@ -779,8 +779,10 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             // initialize core streams
             cis = new CoreInput(socket_.getSource());
             cis.setTypeTranslation(updateTimes);
+            cis.setTimeout(1000);
             timeBase = cis.readLong(); // Timestamp that remote runtime was created - and relative to which time is encoded in this stream
             updateTimes.deserialize(cis);
+            cis.setTimeout(-1);
 
             @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Client " + typeString + "-Listener for " + getDescription()));
             super.reader = listener;
@@ -973,8 +975,20 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                     connect();
                 } catch (ConnectException e) {
                     Thread.sleep(2000);
+                    if (bulk == null) {
+                        ctBulk = null;
+                    }
+                    if (express == null) {
+                        ctExpress = null;
+                    }
                 } catch (Exception e) {
                     log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
+                    if (bulk == null) {
+                        ctBulk = null;
+                    }
+                    if (express == null) {
+                        ctExpress = null;
+                    }
                 }
 
             } else if (ctBulk != null && ctExpress != null) {
