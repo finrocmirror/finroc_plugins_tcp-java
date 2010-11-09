@@ -299,7 +299,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                     port = new ProxyPort(info);
                 } else { // refound port
                     //Cpp printf("refound network port %p %s\n", port, port->getPort()->getCDescription());
-                    synchronized (port) {
+                    synchronized (port.getPort()) {
                         port.refound = true;
                         port.connection = (info.getFlags() & PortFlags.IS_EXPRESS_PORT) > 0 ? express : bulk;
                         assert(port.matches(info)) : "Structure in server changed - that shouldn't happen";
