@@ -80,13 +80,13 @@ public class TCP implements Plugin, HasDestructor {
     @Ptr private static final ReusablesPoolCR<TCPCommand> tcpCommands = AutoDeleter.addStatic(new ReusablesPoolCR<TCPCommand>());
 
     /** Standard TCP connection creator */
-    private final CreateAction creator1 = new CreateAction(TCPPeer.GUI_FILTER, "TCP", 0);
+    public static final CreateAction creator1 = new CreateAction(TCPPeer.GUI_FILTER, "TCP", 0);
 
     /** Alternative TCP connection creator */
-    private final CreateAction creator2 = new CreateAction(TCPPeer.DEFAULT_FILTER, "TCP ports only", 0);
+    public static final CreateAction creator2 = new CreateAction(TCPPeer.DEFAULT_FILTER, "TCP ports only", 0);
 
     /** Complete TCP connection creator */
-    private final CreateAction creator3 = new CreateAction(TCPPeer.ALL_AND_EDGE_FILTER, "TCP admin", CreateExternalConnectionAction.REMOTE_EDGE_INFO);
+    public static final CreateAction creator3 = new CreateAction(TCPPeer.ALL_AND_EDGE_FILTER, "TCP admin", CreateExternalConnectionAction.REMOTE_EDGE_INFO);
 
     /**
      * @return Unused TCP Command
@@ -103,9 +103,9 @@ public class TCP implements Plugin, HasDestructor {
 
     @Override
     public void init(PluginManager mgr) {
-        Plugins.getInstance().registerExternalConnection(creator1);
-        Plugins.getInstance().registerExternalConnection(creator2);
-        Plugins.getInstance().registerExternalConnection(creator3);
+//        Plugins.getInstance().registerExternalConnection(creator1);
+//        Plugins.getInstance().registerExternalConnection(creator2);
+//        Plugins.getInstance().registerExternalConnection(creator3);
     }
 
     @Override
@@ -119,7 +119,7 @@ public class TCP implements Plugin, HasDestructor {
      * Class for TCP create-Actions
      */
     @AtFront @PassByValue
-    private class CreateAction implements CreateExternalConnectionAction {
+    private static class CreateAction implements CreateExternalConnectionAction {
 
         /** Filter to used for this connection type */
         private final FrameworkElementTreeFilter filter;
@@ -130,11 +130,24 @@ public class TCP implements Plugin, HasDestructor {
         /** Flags to use */
         private final int flags;
 
+        /** Name of module type */
+        private final String group;
+
         public CreateAction(FrameworkElementTreeFilter filter, String name, int flags) {
             this.filter = filter;
             this.name = name;
             this.flags = flags;
+            Plugins.getInstance().registerExternalConnection(this);
+
+            //Cpp group = getBinary((void*)_M_dummy);
+
+            //JavaOnlyBlock
+            this.group = Plugins.getInstance().getContainingJarFile(TCP.class);
         }
+
+        /*Cpp
+        static void dummy() {}
+         */
 
         @Override
         public FrameworkElement createModule(String name, FrameworkElement parent, ConstructorParameters params) throws Exception {
@@ -150,7 +163,7 @@ public class TCP implements Plugin, HasDestructor {
 
         @Override
         public String getModuleGroup() {
-            return "tcp";
+            return group;
         }
 
         @Override
