@@ -154,10 +154,10 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
      * @param peer Peer that this server belongs to
      */
     public RemoteServer(IPSocketAddress isa, String name, FrameworkElement parent, @Const @Ref FrameworkElementTreeFilter filter, TCPPeer peer) {
-        super(name, parent, CoreFlags.NETWORK_ELEMENT | CoreFlags.ALLOWS_CHILDREN | (filter.isPortOnlyFilter() ? 0 : CoreFlags.ALTERNATE_LINK_ROOT), LockOrderLevels.REMOTE); // manages ports itself
+        super(parent, name, CoreFlags.NETWORK_ELEMENT | CoreFlags.ALLOWS_CHILDREN | (filter.isPortOnlyFilter() ? 0 : CoreFlags.ALTERNATE_LINK_ROOT), LockOrderLevels.REMOTE); // manages ports itself
         this.filter = filter;
         this.peer = peer;
-        globalLinks = filter.isPortOnlyFilter() ? new FrameworkElement("global", this, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | CoreFlags.GLOBALLY_UNIQUE_LINK | CoreFlags.ALTERNATE_LINK_ROOT, -1) : null;
+        globalLinks = filter.isPortOnlyFilter() ? new FrameworkElement(this, "global", CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | CoreFlags.GLOBALLY_UNIQUE_LINK | CoreFlags.ALTERNATE_LINK_ROOT, -1) : null;
         address = isa;
 
         //JavaOnlyBlock
@@ -463,7 +463,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
         /** Constructor for yet anonymous element */
         public ProxyFrameworkElement(int handle, int extraFlags, int lockOrder) {
-            super("(yet unknown)", null, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | FrameworkElementInfo.filterParentFlags(extraFlags), lockOrder);
+            super(null, "(yet unknown)", CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | FrameworkElementInfo.filterParentFlags(extraFlags), lockOrder);
             this.remoteHandle = handle;
             remoteElementRegister.put(-remoteHandle, this);
             yetUnknown = true;

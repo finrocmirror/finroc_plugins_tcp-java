@@ -71,7 +71,7 @@ public class TCPServer extends FrameworkElement implements org.finroc.jc.net.TCP
      */
     public TCPServer(int port, boolean tryNextPortsIfOccupied, TCPPeer peer) {
         //super("tcpserver_" + name + "_" + networkName);
-        super("TCP Server", peer, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT, LockOrderLevels.LEAF_GROUP);
+        super(peer, "TCP Server", CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT, LockOrderLevels.LEAF_GROUP);
         this.peer = peer;
         TCPSettings.initInstance();
         this.port = port;

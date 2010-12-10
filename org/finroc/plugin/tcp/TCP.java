@@ -150,7 +150,7 @@ public class TCP implements Plugin, HasDestructor {
          */
 
         @Override
-        public FrameworkElement createModule(String name, FrameworkElement parent, ConstructorParameters params) throws Exception {
+        public FrameworkElement createModule(FrameworkElement parent, String name, ConstructorParameters params) throws Exception {
             FrameworkElement result = createExternalConnection();
             parent.addChild(result);
             return result;
