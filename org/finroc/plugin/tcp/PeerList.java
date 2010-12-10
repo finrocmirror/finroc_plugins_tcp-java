@@ -71,14 +71,6 @@ public class PeerList extends AbstractPeerTracker {
         }
     }
 
-//  /**
-//   * @param port Port that we are listening on (used so that we don't connect to ourselves)
-//   */
-//  public PeerList(int port) {
-//      addPeer(IPSocketAddress.createUnresolved("localhost", port));
-//      addPeer(I)
-//  }
-
     public void addPeer(IPSocketAddress isa, boolean notifyOnChange) {
         synchronized (this) {
             if (peers.contains(isa)) {

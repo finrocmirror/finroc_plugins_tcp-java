@@ -63,19 +63,6 @@ public class TCPSettings extends Settings {
     /** Help for debugging: this number will be inserted after every command when DEBUG_TCP is activated */
     @Const static final int DEBUG_TCP_NUMBER = 0xCAFEBABE;
 
-//  /** TCP Settings from tcp.conf */
-//  private static final Properties defaultSettings;
-
-//  static {
-//      // init settings
-//      defaultSettings = new Properties();
-//      try {
-//          defaultSettings.load(TCP.instance.getConfFile());
-//      } catch (Exception e) {
-//          e.printStackTrace();
-//      }
-//  }
-
     // Port settings
     static final IntSetting maxNotAcknowledgedPacketsExpress =
         inst.add("Maximum not acknowledged express packets", 4, true, Unit.NO_UNIT, new Bounds(1, 40, true));

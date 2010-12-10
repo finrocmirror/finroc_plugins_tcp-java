@@ -407,12 +407,6 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
     @AtFront @Friend(TCPConnection.class)
     public class Writer extends CoreLoopThreadBase implements HasDestructor {
 
-        ///** Signal that something relevant changed */
-        //public volatile boolean changedSignal;
-
-        ///** True, when thread is asleep, because nothing is happening */
-        //private volatile boolean waiting;
-
         /** Index of last packet that was acknowledged */
         private int lastAckIndex = 0;
 

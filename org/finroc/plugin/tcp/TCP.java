@@ -54,14 +54,6 @@ public class TCP implements Plugin, HasDestructor {
         instance = this;
     }
 
-//  @Override
-//  public CreateModuleAction[] getPluginModules() {
-//      return new CreateModuleAction[]{
-//              new CreateExternalConnectionAction(TCPClient.class),
-//              new ConstructorCreateModuleAction(TCPServer.class, ExternalConnection.GROUP_NAME),
-//      };
-//  }
-
     /** Stream IDs for different connection types */
     public static final byte TCP_P2P_ID_EXPRESS = 9, TCP_P2P_ID_BULK = 10;
 

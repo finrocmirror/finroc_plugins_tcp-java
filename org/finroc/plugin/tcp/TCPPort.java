@@ -100,22 +100,6 @@ public abstract class TCPPort extends NetPort {
         }
     }
 
-//  @Override
-//  protected void sendCallReturn(AbstractCall mc) {
-//      TCPConnection c = connection;
-//      if (c != null) {
-//
-//          // okay, we received a pull return that needs to be forwarded over the net
-//          mc.setRemotePortHandle(mc.popCaller());
-//          c.sendCall(mc);
-//      } else {
-//
-//          // no connection - throw exception
-//          mc.setStatus(AbstractCall.CONNECTION_EXCEPTION);
-//          mc.returnToCaller();
-//      }
-//  }
-
     /**
      * @return Publish data of this port over the network when it changes? (regardless of forward or reverse direction)
      */

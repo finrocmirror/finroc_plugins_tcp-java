@@ -90,14 +90,8 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
     /** Network address */
     private final IPSocketAddress address;
 
-    /** TCP Client Module => in parent */
-    //private final TCPClient client;
-
     /** Bulk and Express Connections to server */
     private @SharedPtr Connection bulk, express;
-
-    /** Cached reference to runtime environment */
-    //private static final RuntimeEnvironment runtime = RuntimeEnvironment.getInstance();
 
     /** This thread reconnects disconnected Remote Nodes and updates subscriptions */
     private final @SharedPtr ConnectorThread connectorThread;
@@ -409,9 +403,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 pp.reset();
             }
             portIterator.reset();
-            //      for (ProxyPort pp = portIterator.next(); pp != null; pp = portIterator.next()) {
-            //          pp.subscriptionQueueLength = 0;
-            //      }
         }
     }
 
@@ -482,14 +473,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             return true;
         }
 
-//      public ProxyFrameworkElement(@Const @Ref FrameworkElementInfo info) {
-//          super("(yet unknown)", null, CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | (info.getFlags() & FrameworkElementInfo.PARENT_FLAGS_TO_STORE));
-//          this.remoteHandle = info.getHandle();
-//          remoteElementRegister.put(-remoteHandle, this);
-//          updateFromPortInfo(info);
-//          yetUnknown = false;
-//      }
-
         /**
          * Update information about framework element
          *
@@ -499,10 +482,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             if (!isReady()) {
                 assert(info.opCode == RuntimeListener.ADD) : "only add operation may change framework element before initialization";
                 assert(info.getLinkCount() == 1) : "Framework elements currently may not be linked";
-//              for (int i = 1; i < info.getLinks().size(); i++) {
-//                  ProxyFrameworkElement pxe = getFrameworkElement(info.getParents().get(i));
-//                  pxe.link(this, info.getLinks().get(i));
-//              }
                 setDescription(info.getLink(0).name);
                 getFrameworkElement(info.getLink(0).parent, info.getLink(0).extraFlags, false, info.getLink(0).parent).addChild(this);
             }
@@ -650,19 +629,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
         @Override
         protected void propagateStrategyOverTheNet() {
-//          if (getPort().getStrategy() == -1) {
-//              ((Connection)connection).unsubscribe(remoteHandle);
-//              connected = false;
-//          } else {
-//              ((Connection)connection).subscribe(remoteHandle, getPort().getStrategy(), getPort().isConnectedToReversePushSources(), getUpdateIntervalForNet(), getPort().getHandle());
-//              connected = true;
-//          }
             checkSubscription();
         }
 
-        /* (non-Javadoc)
-         * @see core.plugin.tcp2.TCPPort#checkSubscription()
-         */
         @Override
         protected void checkSubscription() {
             synchronized (getPort().getRegistryLock()) {
@@ -721,16 +690,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
     private static PortCreationInfo createPCI(@Const @Ref FrameworkElementInfo portInfo) {
         PortCreationInfo pci = new PortCreationInfo(portInfo.getFlags());
         pci.flags = portInfo.getFlags();
-
-        // unset shared flag
-        //pci.setFlag(PortFlags.NETWORK_PORT, true);
-
-        // unset copy data flags (data is always copied)
-        //pci.flags = PortFlags.setFlag(pci.flags, PortFlags.COPY_DATA, false);
-        //pci.flags = PortFlags.setFlag(pci.flags, PortFlags.COPY_REVERSE_DATA, false);
-
-        // always create send buffers (for deserialization)
-        //pci.flags = PortFlags.setFlag(pci.flags, PortFlags.OWNS_SEND_BUFFERS, true);
 
         // set queue size
         pci.maxQueueSize = portInfo.getStrategy();
@@ -947,9 +906,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
         /** Bulk and Express Connections to server - copy for connector thread */
         private @SharedPtr Connection ctBulk, ctExpress;
-
-//      /** Static ChildIterator */
-//      private RemoteCoreRegister<ProxyPort>.Iterator ci = remotePortRegister.getIterator();
 
         public ConnectorThread() {
             super(TCPSettings.CONNECTOR_THREAD_LOOP_INTERVAL, false, false);

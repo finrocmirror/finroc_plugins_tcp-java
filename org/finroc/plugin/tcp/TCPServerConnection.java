@@ -80,12 +80,6 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     /** FrameworkElement representation of this Connection (so temporary ports are grouped and can conveniently be deleted) */
     private final PortSet portSet;
 
-    /** Unique ids for ports in this connection */
-    //private final AtomicInt portId = new AtomicInt();
-
-    ///** lookup table for proxy ports */
-    //private final int[] proxyPortLookup = new int[CoreRegister.MAX_ELEMENTS];
-
     /** Send information about runtime in this connection? */
     private boolean sendRuntimeInfo = false;
 
@@ -373,12 +367,6 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
                 ((AbstractPort)port).notifyDisconnect();
             }
         }
-
-//      @Override
-//      public void handleCallReturn(AbstractCall pc) {
-//          pc.setRemotePortHandle(pc.popCaller());
-//          TCPServerConnection.this.sendCall(pc);
-//      }
     }
 
     /**
@@ -419,50 +407,6 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
                 localPort.notifyDisconnect();
             }
         }
-
-//      /**
-//       * Set Push strategy
-//       *
-//       * @param b on or off?
-//       */
-//      public void setPush(boolean b) {
-//          if (getPort().isOutputPort()) {
-//              getPort().setReversePushStrategy(b);
-//          } else {
-//              getPort().setPushStrategy(b);
-//          }
-//      }
-
-//      /**
-//       * @param queueLength maximum Queue Length
-//       */
-//      public void setQueueLength(int queueLength) {
-//          if (getPort().getFlag(PortFlags.OUTPUT_PORT | PortFlags.HAS_QUEUE)) {
-//              getPort().setMaxQueueLength(queueLength);
-//          }
-//      }
-
-//      /**
-//       * @return Current Minimum network update interval for this port (takes local and remote settings into account)
-//       */
-//      public short getMinNetUpdateInterval() {
-//          short t = 0;
-//          if ((t = updateIntervalPartner) >= 0) {
-//              return t;
-//          } else if ((t = localPort.getMinNetUpdateInterval()) >= 0) {
-//              return t;
-//          } else if ((t = updateTimes.getTime(getPort().getDataType())) >= 0) {
-//              return t;
-//          } else if ((t = getPort().getDataType().getUpdateTime()) >= 0) {
-//              return t;
-//          }
-//          return updateTimes.getGlobalDefault();
-//      }
-//
-//      @Override
-//      protected void portChanged() {
-//          notifyWriter();
-//      }
 
         @Override
         protected void propagateStrategyOverTheNet() {

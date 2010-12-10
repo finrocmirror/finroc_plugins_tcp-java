@@ -41,9 +41,6 @@ public class TCPCommand extends SerializableReusable {
     /** Strategy to use/request */
     public int strategy;
 
-    /** Mode for minimum network update interval */
-    //public byte updateIntervalMode;
-
     /** Minimum network update interval */
     public short updateInterval;
 
@@ -81,11 +78,4 @@ public class TCPCommand extends SerializableReusable {
             break;
         }
     }
-
-//  @Override
-//  public void genericRecycle() {
-//      if (isResponsible()) {
-//          super.recycle();
-//      }
-//  }
 }
