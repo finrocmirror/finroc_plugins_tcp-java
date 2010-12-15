@@ -41,7 +41,6 @@ import org.finroc.jc.stream.LargeIntermediateStreamBuffer;
 import org.finroc.jc.thread.ThreadUtil;
 import org.finroc.log.LogLevel;
 
-import org.finroc.core.ChildIterator;
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElementTreeFilter;
@@ -476,7 +475,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         public void mainLoopCallback() throws Exception {
 
             long startTime = Time.getCoarse();
-            long mayWait = TCPSettings.criticalPingThreshold.get();
+            long mayWait = TCPSettings.getInstance().criticalPingThreshold.get();
 
             @Ptr ArrayWrapper<TCPServerConnection> it = connections.getIterable();
             for (int i = 0, n = connections.size(); i < n; i++) {

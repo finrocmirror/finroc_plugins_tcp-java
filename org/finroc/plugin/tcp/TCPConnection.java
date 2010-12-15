@@ -56,6 +56,7 @@ import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeSettings;
 import org.finroc.core.buffer.CoreOutput;
 import org.finroc.core.buffer.CoreInput;
+import org.finroc.core.parameter.ParameterNumeric;
 import org.finroc.core.port.AbstractPort;
 import org.finroc.core.port.ThreadLocalCache;
 import org.finroc.core.port.net.NetPort;
@@ -67,7 +68,6 @@ import org.finroc.core.port.rpc.PullCall;
 import org.finroc.core.port.rpc.RPCThreadPool;
 import org.finroc.core.portdatabase.DataType;
 import org.finroc.core.portdatabase.SerializableReusable;
-import org.finroc.core.setting.IntSetting;
 import org.finroc.core.thread.CoreLoopThreadBase;
 
 /**
@@ -103,8 +103,8 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
     protected long timeBase;
 
     /** References to Connection parameters */
-    @Const @Ref private IntSetting minUpdateInterval;
-    @Const @Ref private IntSetting maxNotAcknowledgedPackets;
+    @Const @Ref private ParameterNumeric<Integer> minUpdateInterval;
+    @Const @Ref private ParameterNumeric<Integer> maxNotAcknowledgedPackets;
 
     /** Index of last acknowledged sent packet */
     private volatile int lastAcknowledgedPacket = 0;
@@ -163,8 +163,8 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         this.sendPeerInfoToPartner = sendPeerInfoToPartner;
 
         // set params
-        minUpdateInterval = (type == TCP.TCP_P2P_ID_BULK) ? TCPSettings.minUpdateIntervalBulk : TCPSettings.minUpdateIntervalExpress;
-        maxNotAcknowledgedPackets = (type == TCP.TCP_P2P_ID_BULK) ? TCPSettings.maxNotAcknowledgedPacketsBulk : TCPSettings.maxNotAcknowledgedPacketsExpress;
+        minUpdateInterval = (type == TCP.TCP_P2P_ID_BULK) ? TCPSettings.getInstance().minUpdateIntervalBulk : TCPSettings.getInstance().minUpdateIntervalExpress;
+        maxNotAcknowledgedPackets = (type == TCP.TCP_P2P_ID_BULK) ? TCPSettings.getInstance().maxNotAcknowledgedPacketsBulk : TCPSettings.getInstance().maxNotAcknowledgedPacketsExpress;
 
         RuntimeSettings.getInstance().addUpdateTimeChangeListener(this);
         if (peer != null) {
@@ -677,18 +677,18 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         @InCpp("::std::tr1::shared_ptr<Writer> lockedWriter = writer._lock();")
         @SharedPtr Writer lockedWriter = writer;
         if (lockedWriter == null) {
-            return TCPSettings.criticalPingThreshold.get();
+            return TCPSettings.getInstance().criticalPingThreshold.get();
         }
         if (lastAcknowledgedPacket != lockedWriter.curPacketIndex) {
             long criticalPacketTime = sentPacketTime[(lastAcknowledgedPacket + 1) & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS];
-            long timeLeft = criticalPacketTime + TCPSettings.criticalPingThreshold.get() - System.currentTimeMillis();
+            long timeLeft = criticalPacketTime + TCPSettings.getInstance().criticalPingThreshold.get() - System.currentTimeMillis();
             if (timeLeft < 0) {
                 handlePingTimeExceed();
-                return TCPSettings.criticalPingThreshold.get();
+                return TCPSettings.getInstance().criticalPingThreshold.get();
             }
             return timeLeft;
         } else {
-            return TCPSettings.criticalPingThreshold.get();
+            return TCPSettings.getInstance().criticalPingThreshold.get();
         }
     }
 
@@ -725,7 +725,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         }
         if (lastAcknowledgedPacket != lockedWriter.curPacketIndex) {
             long criticalPacketTime = sentPacketTime[(lastAcknowledgedPacket + 1) & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS];
-            long timeLeft = criticalPacketTime + TCPSettings.criticalPingThreshold.get() - System.currentTimeMillis();
+            long timeLeft = criticalPacketTime + TCPSettings.getInstance().criticalPingThreshold.get() - System.currentTimeMillis();
             return timeLeft < 0;
         } else {
             return false;

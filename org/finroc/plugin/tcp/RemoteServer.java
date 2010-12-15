@@ -357,7 +357,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
         //JavaOnlyBlock
         if (adminInterface != null && adminInterface.isReady()) {
-            adminInterface.managedDelete();
+            adminInterface.delete();
         }
 
         log(LogLevel.LL_DEBUG, logDomain, "RemoteServer: Disconnecting");
@@ -758,7 +758,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 if (adminInterface != null) {
                     FrameworkElement fe = getChildElement(AdminServer.QUALIFIED_PORT_NAME, false);
                     if (fe != null && fe.isPort() && fe.isReady()) {
-                        ((AbstractPort)fe).connectToTarget(adminInterface);
+                        ((AbstractPort)fe).connectToTarget(adminInterface.getWrapped());
                     }
                 }
 
@@ -953,7 +953,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
                     // check ping times
                     long startTime = System.currentTimeMillis();
-                    long mayWait = TCPSettings.criticalPingThreshold.get();
+                    long mayWait = TCPSettings.getInstance().criticalPingThreshold.get();
                     mayWait = Math.min(mayWait, ctExpress.checkPingForDisconnect());
                     mayWait = Math.min(mayWait, ctBulk.checkPingForDisconnect());
 

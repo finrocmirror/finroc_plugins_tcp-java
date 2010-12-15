@@ -172,7 +172,8 @@ public abstract class TCPPort extends NetPort {
         }
 
         // 5. runtime default
-        return (short)RuntimeSettings.DEFAULT_MINIMUM_NETWORK_UPDATE_TIME.get();
+        int res = RuntimeSettings.DEFAULT_MINIMUM_NETWORK_UPDATE_TIME.get();
+        return (short)res;
     }
 
     @Override

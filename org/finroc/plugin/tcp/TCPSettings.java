@@ -22,22 +22,23 @@
 package org.finroc.plugin.tcp;
 
 import org.finroc.jc.annotation.Const;
+import org.finroc.jc.annotation.Ptr;
+import org.finroc.core.FrameworkElement;
 import org.finroc.core.RuntimeSettings;
 import org.finroc.core.datatype.Bounds;
 import org.finroc.core.datatype.Constant;
 import org.finroc.core.datatype.Unit;
-import org.finroc.core.setting.IntSetting;
-import org.finroc.core.setting.Settings;
+import org.finroc.core.parameter.ParameterNumeric;
 
 /**
  * @author max
  *
  * TCP Settings
  */
-public class TCPSettings extends Settings {
+public class TCPSettings extends FrameworkElement {
 
     /** Singleton Instance */
-    private static final TCPSettings inst = new TCPSettings();
+    private static TCPSettings inst = null;
 
     /** Loop Interval for Connector Thread... currently only 1ms since waiting is done depending on critical ping times instead */
     static final int CONNECTOR_THREAD_LOOP_INTERVAL = 1;
@@ -64,30 +65,37 @@ public class TCPSettings extends Settings {
     @Const static final int DEBUG_TCP_NUMBER = 0xCAFEBABE;
 
     // Port settings
-    static final IntSetting maxNotAcknowledgedPacketsExpress =
-        inst.add("Maximum not acknowledged express packets", 4, true, Unit.NO_UNIT, new Bounds(1, 40, true));
+    final ParameterNumeric<Integer> maxNotAcknowledgedPacketsExpress =
+        new ParameterNumeric<Integer>("Maximum not acknowledged express packets", this, Unit.NO_UNIT, 4, new Bounds(1, 40, true));
 
-    static final IntSetting maxNotAcknowledgedPacketsBulk =
-        inst.add("Maximum not acknowledged bulk packets", 2, true, Unit.NO_UNIT, new Bounds(1, 40, true));
+    final ParameterNumeric<Integer> maxNotAcknowledgedPacketsBulk =
+        new ParameterNumeric<Integer>("Maximum not acknowledged bulk packets", this, Unit.NO_UNIT, 2, new Bounds(1, 40, true));
 
-    static final IntSetting minUpdateIntervalExpress =
-        inst.add("Minimum Express Update Interval", 25, true, Unit.ms, new Bounds(1, 2000, Constant.NO_MIN_TIME_LIMIT));
+    final ParameterNumeric<Integer> minUpdateIntervalExpress =
+        new ParameterNumeric<Integer>("Minimum Express Update Interval", this, Unit.ms, 25, new Bounds(1, 2000, Constant.NO_MIN_TIME_LIMIT));
 
-    static final IntSetting minUpdateIntervalBulk =
-        inst.add("Minimum Bulk Update Interval", 50, true, Unit.ms, new Bounds(1, 2000, Constant.NO_MIN_TIME_LIMIT));
+    final ParameterNumeric<Integer> minUpdateIntervalBulk =
+        new ParameterNumeric<Integer>("Minimum Bulk Update Interval", this, Unit.ms, 50, new Bounds(1, 2000, Constant.NO_MIN_TIME_LIMIT));
 
-    static final IntSetting criticalPingThreshold =
-        inst.add("Critical Ping Threshold", 1500, true, Unit.ms, new Bounds(50, 20000, Constant.NO_MAX_TIME_LIMIT));
+    final ParameterNumeric<Integer> criticalPingThreshold =
+        new ParameterNumeric<Integer>("Critical Ping Threshold", this, Unit.ms, 1500, new Bounds(50, 20000, Constant.NO_MAX_TIME_LIMIT));
 
     /** Debug Settings */
     //static final BoolSetting DISPLAY_INCOMING_TCP_SERVER_COMMANDS = inst.add("DISPLAY_INCOMING_TCP_SERVER_COMMANDS", true, true);
     //static final BoolSetting DISPLAY_INCOMING_PORT_UPDATES = inst.add("DISPLAY_INCOMING_TCP_SERVER_COMMANDS", false, true);
 
     private TCPSettings() {
-        super("TCP Settings", "tcp", true);
+        super(RuntimeSettings.getInstance(), "TCP Settings");
     }
 
     static void initInstance() {
-        inst.init(RuntimeSettings.getInstance());
+        getInstance().init();
+    }
+
+    public static @Ptr TCPSettings getInstance() {
+        if (inst == null) {
+            inst = new TCPSettings();
+        }
+        return inst;
     }
 }

@@ -33,7 +33,6 @@ import org.finroc.jc.log.LogDefinitions;
 import org.finroc.jc.net.IPSocketAddress;
 import org.finroc.log.LogDomain;
 import org.finroc.log.LogLevel;
-import org.finroc.core.ChildIterator;
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElementTreeFilter;
