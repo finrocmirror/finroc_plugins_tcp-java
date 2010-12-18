@@ -488,6 +488,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             if ((info.getFlags() & CoreFlags.FINSTRUCTED) > 0) {
                 setFlag(CoreFlags.FINSTRUCTED);
             }
+            if ((info.getFlags() & CoreFlags.FINSTRUCTABLE_GROUP) > 0) {
+                setFlag(CoreFlags.FINSTRUCTABLE_GROUP);
+            }
             yetUnknown = false;
         }
 
