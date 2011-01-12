@@ -261,6 +261,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                     long curTime = 0;
                     PeerList pl = null;
                     boolean notifyWriters = false;
+                    short uid = 0;
 
                     // process acknowledgement stuff and other commands common for server and client
                     switch (opCode) {
@@ -287,7 +288,8 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                         break;
 
                     case TCP.UPDATETIME:
-                        updateTimes.setTime(cis.readShort(), cis.readShort());
+                        uid = cis.readShort();
+                        updateTimes.setTime(uid, cis.readShort());
                         break;
 
                     case TCP.PULLCALL:

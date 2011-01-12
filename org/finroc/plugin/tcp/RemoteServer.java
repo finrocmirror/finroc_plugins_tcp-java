@@ -400,7 +400,11 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             // reset subscriptions
             portIterator.reset();
             for (ProxyPort pp = portIterator.next(); pp != null; pp = portIterator.next()) {
-                pp.reset();
+                if (peer.deletePortsOnDisconnect()) {
+                    pp.managedDelete();
+                } else {
+                    pp.reset();
+                }
             }
             portIterator.reset();
         }

@@ -76,6 +76,9 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     /** Peer tracker that we use for discovering network nodes */
     private PeerList tracker;
 
+    /** Delete all ports when client disconnects? */
+    private final boolean deletePortsOnDisconnect;
+
     /** TreeFilter for different applications */
     public static final FrameworkElementTreeFilter GUI_FILTER = new FrameworkElementTreeFilter(CoreFlags.STATUS_FLAGS | CoreFlags.NETWORK_ELEMENT, CoreFlags.READY | CoreFlags.PUBLISHED);
     public static final FrameworkElementTreeFilter DEFAULT_FILTER = new FrameworkElementTreeFilter(CoreFlags.STATUS_FLAGS | CoreFlags.NETWORK_ELEMENT | CoreFlags.SHARED | CoreFlags.IS_PORT, CoreFlags.READY | CoreFlags.PUBLISHED | CoreFlags.SHARED | CoreFlags.IS_PORT);
@@ -95,7 +98,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
      * @param filter Filter that specifies which elements in remote runtime environment we're interested in. (CLIENT and FULL only)
      */
     public TCPPeer(String networkName, FrameworkElementTreeFilter filter) {
-        this(networkName, "", Mode.CLIENT, -1, filter);
+        this(networkName, "", Mode.CLIENT, -1, filter, filter.isAcceptAllFilter());
     }
 
     /**
@@ -104,13 +107,15 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
      * @param mode Mode (see enum above)
      * @param preferredServerPort Port that we will try to open for server. Will try the next ones if not available. (SERVER and FULL only)
      * @param filter Filter that specifies which elements in remote runtime environment we're interested in. (CLIENT and FULL only)
+     * @param deletePortsOnDisconnect Delete all ports when client disconnects?
      */
-    public TCPPeer(String networkName, String uniquePeerName, Mode mode, int preferredServerPort, FrameworkElementTreeFilter filter) {
+    public TCPPeer(String networkName, String uniquePeerName, Mode mode, int preferredServerPort, FrameworkElementTreeFilter filter, boolean deletePortsOnDisconnect) {
         super("TCP", networkName);
         this.networkName = networkName;
         this.name = uniquePeerName;
         this.mode = mode;
         this.filter = filter;
+        this.deletePortsOnDisconnect = deletePortsOnDisconnect;
 
         if (isServer()) {
             server = new TCPServer(preferredServerPort, true, this);
@@ -375,5 +380,12 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
      */
     public boolean isAdminConnection() {
         return filter.isAcceptAllFilter();
+    }
+
+    /**
+     * @return Delete all ports when client disconnects?
+     */
+    public boolean deletePortsOnDisconnect() {
+        return deletePortsOnDisconnect;
     }
 }
