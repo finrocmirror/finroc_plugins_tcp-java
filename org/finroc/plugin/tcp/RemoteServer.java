@@ -397,7 +397,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 express = null; // needed afterwards so commmented out
             }
 
-            // reset subscriptions
+            // reset subscriptions - possibly delete elements
             portIterator.reset();
             for (ProxyPort pp = portIterator.next(); pp != null; pp = portIterator.next()) {
                 if (peer.deletePortsOnDisconnect()) {
@@ -407,6 +407,14 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 }
             }
             portIterator.reset();
+
+            if (peer.deletePortsOnDisconnect()) {
+                elemIterator.reset();
+                for (ProxyFrameworkElement pp = elemIterator.next(); pp != null; pp = elemIterator.next()) {
+                    pp.managedDelete();
+                }
+                elemIterator.reset();
+            }
         }
     }
 
