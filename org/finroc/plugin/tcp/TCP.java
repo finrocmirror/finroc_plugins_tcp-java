@@ -28,7 +28,6 @@ import org.finroc.core.parameter.StructureParameterList;
 import org.finroc.core.plugin.CreateExternalConnectionAction;
 import org.finroc.core.plugin.ExternalConnection;
 import org.finroc.core.plugin.Plugin;
-import org.finroc.core.plugin.PluginManager;
 import org.finroc.core.plugin.Plugins;
 import org.finroc.jc.AutoDeleter;
 import org.finroc.jc.HasDestructor;
@@ -94,7 +93,7 @@ public class TCP implements Plugin, HasDestructor {
     }
 
     @Override
-    public void init(PluginManager mgr) {
+    public void init(/*PluginManager mgr*/) {
 //        Plugins.getInstance().registerExternalConnection(creator1);
 //        Plugins.getInstance().registerExternalConnection(creator2);
 //        Plugins.getInstance().registerExternalConnection(creator3);

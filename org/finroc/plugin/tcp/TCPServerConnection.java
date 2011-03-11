@@ -54,7 +54,6 @@ import org.finroc.core.port.AbstractPort;
 import org.finroc.core.port.PortCreationInfo;
 import org.finroc.core.port.PortFlags;
 import org.finroc.core.port.net.RemoteTypes;
-import org.finroc.core.portdatabase.DataTypeRegister;
 import org.finroc.core.thread.CoreLoopThreadBase;
 
 /**
@@ -67,7 +66,7 @@ import org.finroc.core.thread.CoreLoopThreadBase;
  *
  * Thread-safety: Reader thread is the only one that deletes ports while operating. So it can use them without lock.
  */
-@CppInclude("TCPServer.h")
+@CppInclude("tcp/TCPServer.h")
 public final class TCPServerConnection extends TCPConnection implements RuntimeListener, FrameworkElementTreeFilter.Callback<Boolean> {
 
     /** List with connections for TCP servers in this runtime */
@@ -119,7 +118,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             cos = new CoreOutput(lmBuf);
             //cos = new CoreOutputStream(new BufferedOutputStreamMod(s.getOutputStream()));
             cos.writeLong(RuntimeEnvironment.getInstance().getCreationTime()); // write base timestamp
-            RemoteTypes.serializeLocalDataTypes(DataTypeRegister.getInstance(), cos);
+            RemoteTypes.serializeLocalDataTypes(cos);
             cos.flush();
 
             // init port set here, since it might be serialized to stream
@@ -475,7 +474,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         public void mainLoopCallback() throws Exception {
 
             long startTime = Time.getCoarse();
-            long mayWait = TCPSettings.getInstance().criticalPingThreshold.get();
+            long mayWait = TCPSettings.getInstance().criticalPingThreshold.getValue();
 
             @Ptr ArrayWrapper<TCPServerConnection> it = connections.getIterable();
             for (int i = 0, n = connections.size(); i < n; i++) {

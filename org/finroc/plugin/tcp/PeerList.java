@@ -29,10 +29,10 @@ import org.finroc.jc.container.SimpleList;
 import org.finroc.jc.log.LogDefinitions;
 import org.finroc.jc.net.IPAddress;
 import org.finroc.jc.net.IPSocketAddress;
-import org.finroc.jc.stream.InputStreamBuffer;
-import org.finroc.jc.stream.OutputStreamBuffer;
 import org.finroc.log.LogDomain;
 import org.finroc.log.LogLevel;
+import org.finroc.serialization.InputStreamBuffer;
+import org.finroc.serialization.OutputStreamBuffer;
 
 import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.port.net.AbstractPeerTracker;

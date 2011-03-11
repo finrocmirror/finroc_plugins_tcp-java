@@ -59,26 +59,26 @@ public class TCPSettings extends FrameworkElement {
     static final int AVG_PING_PACKETS = 0x7; // 8 (2^x for fast modulo)
 
     /** Help for debugging: insert checks in data stream => more bandwidth */
-    static final boolean DEBUG_TCP = false;
+    static final boolean DEBUG_TCP = true;
 
     /** Help for debugging: this number will be inserted after every command when DEBUG_TCP is activated */
     @Const static final int DEBUG_TCP_NUMBER = 0xCAFEBABE;
 
     // Port settings
     final ParameterNumeric<Integer> maxNotAcknowledgedPacketsExpress =
-        new ParameterNumeric<Integer>("Maximum not acknowledged express packets", this, Unit.NO_UNIT, 4, new Bounds(1, 40, true));
+        new ParameterNumeric<Integer>("Maximum not acknowledged express packets", this, Unit.NO_UNIT, 4, new Bounds<Integer>(1, 40, true));
 
     final ParameterNumeric<Integer> maxNotAcknowledgedPacketsBulk =
-        new ParameterNumeric<Integer>("Maximum not acknowledged bulk packets", this, Unit.NO_UNIT, 2, new Bounds(1, 40, true));
+        new ParameterNumeric<Integer>("Maximum not acknowledged bulk packets", this, Unit.NO_UNIT, 2, new Bounds<Integer>(1, 40, true));
 
     final ParameterNumeric<Integer> minUpdateIntervalExpress =
-        new ParameterNumeric<Integer>("Minimum Express Update Interval", this, Unit.ms, 25, new Bounds(1, 2000, Constant.NO_MIN_TIME_LIMIT));
+        new ParameterNumeric<Integer>("Minimum Express Update Interval", this, Unit.ms, 25, new Bounds<Integer>(1, 2000, Constant.NO_MIN_TIME_LIMIT.getValue()));
 
     final ParameterNumeric<Integer> minUpdateIntervalBulk =
-        new ParameterNumeric<Integer>("Minimum Bulk Update Interval", this, Unit.ms, 50, new Bounds(1, 2000, Constant.NO_MIN_TIME_LIMIT));
+        new ParameterNumeric<Integer>("Minimum Bulk Update Interval", this, Unit.ms, 50, new Bounds<Integer>(1, 2000, Constant.NO_MIN_TIME_LIMIT.getValue()));
 
     final ParameterNumeric<Integer> criticalPingThreshold =
-        new ParameterNumeric<Integer>("Critical Ping Threshold", this, Unit.ms, 1500, new Bounds(50, 20000, Constant.NO_MAX_TIME_LIMIT));
+        new ParameterNumeric<Integer>("Critical Ping Threshold", this, Unit.ms, 1500, new Bounds<Integer>(50, 20000, Constant.NO_MAX_TIME_LIMIT.getValue()));
 
     /** Debug Settings */
     //static final BoolSetting DISPLAY_INCOMING_TCP_SERVER_COMMANDS = inst.add("DISPLAY_INCOMING_TCP_SERVER_COMMANDS", true, true);

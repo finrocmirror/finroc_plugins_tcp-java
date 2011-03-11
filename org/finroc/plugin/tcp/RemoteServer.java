@@ -68,7 +68,6 @@ import org.finroc.core.port.net.RemoteCoreRegister;
 import org.finroc.core.port.net.RemoteHandleLookup;
 import org.finroc.core.port.net.RemoteRuntime;
 import org.finroc.core.port.net.RemoteTypes;
-import org.finroc.core.portdatabase.DataTypeRegister;
 import org.finroc.core.thread.CoreLoopThreadBase;
 
 /**
@@ -177,9 +176,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
         // connect
         //Cpp finroc::util::GarbageCollector::Functor deleter;
-        @InCpp("std::tr1::shared_ptr<Connection> express(new Connection(this, _T_TCP::TCP_P2P_ID_EXPRESS), deleter);")
+        @InCpp("std::shared_ptr<Connection> express(new Connection(this, _T_TCP::TCP_P2P_ID_EXPRESS), deleter);")
         @SharedPtr Connection express = new Connection(TCP.TCP_P2P_ID_EXPRESS);
-        @InCpp("std::tr1::shared_ptr<Connection> bulk(new Connection(this, _T_TCP::TCP_P2P_ID_BULK), deleter);")
+        @InCpp("std::shared_ptr<Connection> bulk(new Connection(this, _T_TCP::TCP_P2P_ID_BULK), deleter);")
         @SharedPtr Connection bulk = new Connection(TCP.TCP_P2P_ID_BULK);
 
         // Set bulk and express here, because of other threads that might try to access them
@@ -744,7 +743,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             @SharedPtr LargeIntermediateStreamBuffer lmBuf = new LargeIntermediateStreamBuffer(socket_.getSink());
             cos = new CoreOutput(lmBuf);
             cos.writeByte(type);
-            RemoteTypes.serializeLocalDataTypes(DataTypeRegister.getInstance(), cos);
+            RemoteTypes.serializeLocalDataTypes(cos);
             boolean bulk = type == TCP.TCP_P2P_ID_BULK;
             String typeString = getConnectionTypeString();
             cos.writeBoolean(bulk);
@@ -968,7 +967,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
                     // check ping times
                     long startTime = System.currentTimeMillis();
-                    long mayWait = TCPSettings.getInstance().criticalPingThreshold.get();
+                    long mayWait = TCPSettings.getInstance().criticalPingThreshold.getValue();
                     mayWait = Math.min(mayWait, ctExpress.checkPingForDisconnect());
                     mayWait = Math.min(mayWait, ctBulk.checkPingForDisconnect());
 

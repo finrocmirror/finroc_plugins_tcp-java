@@ -30,6 +30,7 @@ import org.finroc.core.port.net.NetPort;
 import org.finroc.core.port.rpc.AbstractCall;
 import org.finroc.core.port.rpc.MethodCallException;
 import org.finroc.core.port.rpc.SynchMethodCallLogic;
+import org.finroc.core.portdatabase.FinrocTypeInfo;
 
 /**
  * @author max
@@ -163,7 +164,7 @@ public abstract class TCPPort extends NetPort {
             return t;
 
             // 3. data type default
-        } else if ((t = getPort().getDataType().getUpdateTime()) >= 0) {
+        } else if ((t = FinrocTypeInfo.get(getPort().getDataType()).getUpdateTime()) >= 0) {
             return t;
 
             // 4. server data type default
@@ -172,7 +173,7 @@ public abstract class TCPPort extends NetPort {
         }
 
         // 5. runtime default
-        int res = RuntimeSettings.DEFAULT_MINIMUM_NETWORK_UPDATE_TIME.get();
+        int res = RuntimeSettings.DEFAULT_MINIMUM_NETWORK_UPDATE_TIME.getValue();
         return (short)res;
     }
 

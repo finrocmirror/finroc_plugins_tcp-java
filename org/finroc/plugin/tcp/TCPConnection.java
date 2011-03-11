@@ -51,6 +51,7 @@ import org.finroc.jc.container.WonderQueue;
 import org.finroc.jc.net.NetSocket;
 import org.finroc.log.LogDomain;
 import org.finroc.log.LogLevel;
+import org.finroc.serialization.DataTypeBase;
 
 import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeSettings;
@@ -66,7 +67,7 @@ import org.finroc.core.port.rpc.MethodCall;
 import org.finroc.core.port.rpc.MethodCallException;
 import org.finroc.core.port.rpc.PullCall;
 import org.finroc.core.port.rpc.RPCThreadPool;
-import org.finroc.core.portdatabase.DataType;
+import org.finroc.core.portdatabase.FinrocTypeInfo;
 import org.finroc.core.portdatabase.SerializableReusable;
 import org.finroc.core.thread.CoreLoopThreadBase;
 
@@ -208,7 +209,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         } catch (Exception e) {}
 
         // join threads for thread safety
-        @InCpp("::std::tr1::shared_ptr<Writer> lockedWriter = writer._lock();")
+        @InCpp("std::shared_ptr<Writer> lockedWriter = writer._lock();")
         @SharedPtr Writer lockedWriter = writer;
         if (lockedWriter != null && Thread.currentThread() != lockedWriter) {
             try {
@@ -218,7 +219,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                 log(LogLevel.LL_WARNING, logDomain, "warning: TCPConnection::disconnect() - Interrupted waiting for writer thread.");
             }
         }
-        @InCpp("::std::tr1::shared_ptr<Reader> lockedReader = reader._lock();")
+        @InCpp("std::shared_ptr<Reader> lockedReader = reader._lock();")
         @SharedPtr Reader lockedReader = reader;
         if (lockedReader != null && Thread.currentThread() != lockedReader) {
             try {
@@ -396,7 +397,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
      * Notify (possibly wake-up) writer thread. Should be called whenever new tasks for the writer arrive.
      */
     public void notifyWriter() {
-        @InCpp("::std::tr1::shared_ptr<Writer> lockedWriter = writer._lock();")
+        @InCpp("std::shared_ptr<Writer> lockedWriter = writer._lock();")
         @SharedPtr Writer lockedWriter = writer;
         if (lockedWriter != null) {
             lockedWriter.notifyWriter();
@@ -447,7 +448,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
 
         @InCppFile
         public boolean canSend() {
-            int maxNotAck = maxNotAcknowledgedPackets.get();
+            int maxNotAck = maxNotAcknowledgedPackets.getValue();
             return curPacketIndex < lastAcknowledgedPacket + maxNotAck || (maxNotAck <= 0 && curPacketIndex < lastAcknowledgedPacket + TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS);
         }
 
@@ -532,8 +533,8 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                     tc.releaseAllLocks();
 
                     // wait for minimum update time
-                    long waitFor = ((long)minUpdateInterval.get()) - (System.currentTimeMillis() - startTime);
-                    assert(waitFor <= minUpdateInterval.get());
+                    long waitFor = ((long)minUpdateInterval.getValue()) - (System.currentTimeMillis() - startTime);
+                    assert(waitFor <= minUpdateInterval.getValue());
                     if ((waitFor > 0) && (!disconnectSignal)) {
                         Thread.sleep(waitFor);
                     }
@@ -676,21 +677,21 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
      * @return Time the calling thread may wait before calling again (it futile to call this method before)
      */
     public long checkPingForDisconnect() {
-        @InCpp("::std::tr1::shared_ptr<Writer> lockedWriter = writer._lock();")
+        @InCpp("std::shared_ptr<Writer> lockedWriter = writer._lock();")
         @SharedPtr Writer lockedWriter = writer;
         if (lockedWriter == null) {
-            return TCPSettings.getInstance().criticalPingThreshold.get();
+            return TCPSettings.getInstance().criticalPingThreshold.getValue();
         }
         if (lastAcknowledgedPacket != lockedWriter.curPacketIndex) {
             long criticalPacketTime = sentPacketTime[(lastAcknowledgedPacket + 1) & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS];
-            long timeLeft = criticalPacketTime + TCPSettings.getInstance().criticalPingThreshold.get() - System.currentTimeMillis();
+            long timeLeft = criticalPacketTime + TCPSettings.getInstance().criticalPingThreshold.getValue() - System.currentTimeMillis();
             if (timeLeft < 0) {
                 handlePingTimeExceed();
-                return TCPSettings.getInstance().criticalPingThreshold.get();
+                return TCPSettings.getInstance().criticalPingThreshold.getValue();
             }
             return timeLeft;
         } else {
-            return TCPSettings.getInstance().criticalPingThreshold.get();
+            return TCPSettings.getInstance().criticalPingThreshold.getValue();
         }
     }
 
@@ -720,14 +721,14 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
      * @return Is critical ping time currently exceeded (possibly temporary disconnect)
      */
     public boolean pingTimeExceeed() {
-        @InCpp("::std::tr1::shared_ptr<Writer> lockedWriter = writer._lock();")
+        @InCpp("std::shared_ptr<Writer> lockedWriter = writer._lock();")
         @SharedPtr Writer lockedWriter = writer;
         if (lockedWriter == null) {
             return false;
         }
         if (lastAcknowledgedPacket != lockedWriter.curPacketIndex) {
             long criticalPacketTime = sentPacketTime[(lastAcknowledgedPacket + 1) & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS];
-            long timeLeft = criticalPacketTime + TCPSettings.getInstance().criticalPingThreshold.get() - System.currentTimeMillis();
+            long timeLeft = criticalPacketTime + TCPSettings.getInstance().criticalPingThreshold.getValue() - System.currentTimeMillis();
             return timeLeft < 0;
         } else {
             return false;
@@ -803,7 +804,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
      * @param call Call object
      */
     public void sendCall(SerializableReusable call) {
-        @InCpp("::std::tr1::shared_ptr<Writer> lockedWriter = writer._lock();")
+        @InCpp("std::shared_ptr<Writer> lockedWriter = writer._lock();")
         @SharedPtr Writer lockedWriter = writer;
         if (lockedWriter != null && (!disconnectSignal)) {
             lockedWriter.sendCall(call);
@@ -821,7 +822,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
     public abstract void processRequest(byte opCode) throws Exception;
 
     @Override
-    public void updateTimeChanged(DataType dt, short newUpdateTime) {
+    public void updateTimeChanged(@Const @Ref DataTypeBase dt, short newUpdateTime) {
         // forward update time change to connection partner
         TCPCommand tc = TCP.getUnusedTCPCommand();
         tc.opCode = TCP.UPDATETIME;
@@ -866,8 +867,6 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                 // debug output
                 log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Pull return call " + (port != null ? port.getPort().getQualifiedName() : handle) + " status: " + pc.getStatusString());
 
-                // Returning call
-                pc.deserializeParamaters();
             } catch (Exception e) {
                 log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
                 pc.recycle();
@@ -925,11 +924,11 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         // read port index and retrieve proxy port
         int handle = cis.readInt();
         int remoteHandle = cis.readInt();
-        DataType methodType = cis.readType();
+        DataTypeBase methodType = cis.readType();
         cis.readSkipOffset();
         TCPPort port = lookupPortForCallHandling(handle);
 
-        if ((port == null || methodType == null || (!methodType.isMethodType()))) {
+        if ((port == null || methodType == null || (!FinrocTypeInfo.isMethodType(methodType)))) {
 
             // create/decode call
             MethodCall mc = ThreadLocalCache.getFast().getUnusedMethodCall();
@@ -986,7 +985,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         int handle = cis.readInt();
         /*int remoteHandle =*/
         cis.readInt();
-        DataType methodType = cis.readType();
+        DataTypeBase methodType = cis.readType();
         cis.readSkipOffset();
         TCPPort port = lookupPortForCallHandling(handle);
 
