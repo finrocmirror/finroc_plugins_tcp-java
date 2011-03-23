@@ -338,7 +338,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         /** Ensures that connection object exists as long as port set does */
         private final @SharedPtr TCPServerConnection connectionLock;
 
-        public PortSet(TCPServer server, @SharedPtr TCPServerConnection connectionLock) {
+        public PortSet(TCPServer server, @PassByValue @SharedPtr TCPServerConnection connectionLock) {
             super(server, "connection" + connectionId.getAndIncrement(), CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT, LockOrderLevels.PORT - 1); // manages ports itself
             portIterator = new ChildIterator(this);
             this.connectionLock = connectionLock;
