@@ -78,4 +78,10 @@ public class TCPCommand extends SerializableReusable {
             break;
         }
     }
+
+    /*Cpp
+    virtual void customDelete(bool b) {
+        Reusable::customDelete(b);
+    }
+     */
 }
