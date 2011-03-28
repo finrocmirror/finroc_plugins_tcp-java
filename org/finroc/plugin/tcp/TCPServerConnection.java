@@ -26,6 +26,7 @@ import java.util.List;
 
 import org.finroc.jc.ArrayWrapper;
 import org.finroc.jc.AtomicInt;
+import org.finroc.jc.AutoDeleter;
 import org.finroc.jc.MutexLockOrder;
 import org.finroc.jc.Time;
 import org.finroc.jc.annotation.CppInclude;
@@ -70,7 +71,7 @@ import org.finroc.core.thread.CoreLoopThreadBase;
 public final class TCPServerConnection extends TCPConnection implements RuntimeListener, FrameworkElementTreeFilter.Callback<Boolean> {
 
     /** List with connections for TCP servers in this runtime */
-    static final SafeConcurrentlyIterableList<TCPServerConnection> connections = new SafeConcurrentlyIterableList<TCPServerConnection>(4, 4);
+    static final @Ptr SafeConcurrentlyIterableList<TCPServerConnection> connections = AutoDeleter.addStatic(new SafeConcurrentlyIterableList<TCPServerConnection>(4, 4));
 
     /** Used for creating connection IDs */
     private static final AtomicInt connectionId = new AtomicInt();
