@@ -70,11 +70,14 @@ public class TCP implements Plugin, HasDestructor {
     /** Pool with Reusable TCP Commands (SUBSCRIBE & UNSUBSCRIBE) */
     @Ptr private static final ReusablesPoolCR<TCPCommand> tcpCommands = AutoDeleter.addStatic(new ReusablesPoolCR<TCPCommand>());
 
+    /** Name of ports only connection */
+    public static final String TCP_PORTS_ONLY_NAME = "TCP ports only";
+
     /** Standard TCP connection creator */
     public static final CreateAction creator1 = new CreateAction(TCPPeer.GUI_FILTER, "TCP", 0);
 
     /** Alternative TCP connection creator */
-    public static final CreateAction creator2 = new CreateAction(TCPPeer.DEFAULT_FILTER, "TCP ports only", 0);
+    public static final CreateAction creator2 = new CreateAction(TCPPeer.DEFAULT_FILTER, TCP_PORTS_ONLY_NAME, 0);
 
     /** Complete TCP connection creator */
     public static final CreateAction creator3 = new CreateAction(TCPPeer.ALL_AND_EDGE_FILTER, "TCP admin", CreateExternalConnectionAction.REMOTE_EDGE_INFO);
