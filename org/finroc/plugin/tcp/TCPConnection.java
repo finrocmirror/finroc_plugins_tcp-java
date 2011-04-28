@@ -962,7 +962,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
             cis.setBufferSource(null);
 
             // process call
-            log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Method call " + (port != null ? port.getPort().getQualifiedName() : handle));
+            log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Method call " + (port != null ? port.getPort().getQualifiedName() : handle) + " " + mc.getMethod().getName());
             if (skipCall) {
                 mc.setExceptionStatus(MethodCallException.Type.NO_CONNECTION);
                 mc.setRemotePortHandle(remoteHandle);
