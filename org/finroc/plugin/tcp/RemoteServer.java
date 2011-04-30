@@ -263,7 +263,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
      */
     private void processPortUpdate(@Ref FrameworkElementInfo info) {
 
-        logDomain.log(LogLevel.LL_DEBUG_VERBOSE_2, getLogDescription(), "Received updated FrameworkElementInfo: " + tmpInfo.toString());
+        logDomain.log(LogLevel.LL_DEBUG_VERBOSE_2, getLogDescription(), "Received updated FrameworkElementInfo: " + info.toString());
 
         // these variables will store element to update
         ProxyFrameworkElement fe = null;
@@ -323,20 +323,28 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         } else if (info.opCode == RuntimeListener.CHANGE || info.opCode == FrameworkElementInfo.EDGE_CHANGE) {
 
             // we're dealing with an existing framework element
-            assert(fe != null || port != null);
             if (info.isPort()) {
+                if (port == null && info.getDataType() == null) { // ignore ports that we did not create, because of unknown type
+                    return;
+                }
+                assert(port != null);
                 port.updateFromPortInfo(info);
             } else {
+                assert(fe != null);
                 fe.updateFromPortInfo(info);
             }
 
         } else if (info.opCode == RuntimeListener.REMOVE) {
 
             // we're dealing with an existing framework element
-            assert(fe != null || port != null);
             if (info.isPort()) {
+                if (port == null && info.getDataType() == null) { // ignore ports that we did not create, because of unknown type
+                    return;
+                }
+                assert(port != null);
                 port.managedDelete();
             } else {
+                assert(fe != null);
                 fe.managedDelete();
             }
 
