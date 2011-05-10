@@ -138,7 +138,11 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
                 sendRuntimeInfo = true;
                 synchronized (RuntimeEnvironment.getInstance().getRegistryLock()) { // lock runtime so that we do not miss a change
                     RuntimeEnvironment.getInstance().addListener(this);
+
+                    //JavaOnlyBlock
                     elementFilter.traverseElementTree(RuntimeEnvironment.getInstance(), this, null, tmp);
+
+                    //Cpp elementFilter.traverseElementTree(core::RuntimeEnvironment::getInstance(), this, false, tmp);
                 }
                 cos.writeByte(0); // terminator
                 cos.flush();
