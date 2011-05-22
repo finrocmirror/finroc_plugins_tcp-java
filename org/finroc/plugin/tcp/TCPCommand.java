@@ -21,9 +21,10 @@
  */
 package org.finroc.plugin.tcp;
 
-import org.finroc.core.buffer.CoreOutput;
-import org.finroc.core.buffer.CoreInput;
 import org.finroc.core.portdatabase.SerializableReusable;
+import org.finroc.serialization.DataTypeBase;
+import org.finroc.serialization.InputStreamBuffer;
+import org.finroc.serialization.OutputStreamBuffer;
 
 /**
  * @author max
@@ -48,18 +49,18 @@ public class TCPCommand extends SerializableReusable {
     public int localIndex;
 
     /** Data type uid */
-    public short datatypeuid;
+    public DataTypeBase datatype;
 
     /** Subscribe with reverse push strategy? */
     public boolean reversePush;
 
     @Override
-    public void deserialize(CoreInput is) {
+    public void deserialize(InputStreamBuffer is) {
         throw new RuntimeException("Unsupported - not needed - server decodes directly (more efficient)");
     }
 
     @Override
-    public void serialize(CoreOutput os) {
+    public void serialize(OutputStreamBuffer os) {
         os.writeByte(opCode);
         switch (opCode) {
         case TCP.SUBSCRIBE:
@@ -73,8 +74,8 @@ public class TCPCommand extends SerializableReusable {
             os.writeInt(remoteHandle);
             break;
         case TCP.UPDATETIME:
-            os.writeInt(datatypeuid);
-            os.writeInt(updateInterval);
+            os.writeType(datatype);
+            os.writeShort(updateInterval);
             break;
         }
     }

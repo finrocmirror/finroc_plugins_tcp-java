@@ -39,7 +39,6 @@ import org.finroc.jc.annotation.Friend;
 import org.finroc.jc.annotation.InCpp;
 import org.finroc.jc.annotation.InCppFile;
 import org.finroc.jc.annotation.IncludeClass;
-import org.finroc.jc.annotation.PassByValue;
 import org.finroc.jc.annotation.Ptr;
 import org.finroc.jc.annotation.Ref;
 import org.finroc.jc.annotation.SharedPtr;
@@ -52,11 +51,11 @@ import org.finroc.jc.net.NetSocket;
 import org.finroc.log.LogDomain;
 import org.finroc.log.LogLevel;
 import org.finroc.serialization.DataTypeBase;
+import org.finroc.serialization.InputStreamBuffer;
+import org.finroc.serialization.OutputStreamBuffer;
 
 import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeSettings;
-import org.finroc.core.buffer.CoreOutput;
-import org.finroc.core.buffer.CoreInput;
 import org.finroc.core.parameter.ParameterNumeric;
 import org.finroc.core.port.AbstractPort;
 import org.finroc.core.port.ThreadLocalCache;
@@ -86,10 +85,10 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
     protected NetSocket socket;
 
     /** Output Stream for sending data to remote Server */
-    protected @SharedPtr CoreOutput cos;
+    protected @SharedPtr OutputStreamBuffer cos;
 
     /** Input Stream for receiving data ro remote Server */
-    protected @SharedPtr CoreInput cis;
+    protected @SharedPtr InputStreamBuffer cis;
 
     /** Listener Thread */
     //protected @SharedPtr Reader listener;
@@ -123,7 +122,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
     private volatile boolean disconnectSignal = false;
 
     /** default connection times of connection partner */
-    @PassByValue protected final RemoteTypes updateTimes = new RemoteTypes();
+    @SharedPtr protected final RemoteTypes updateTimes = new RemoteTypes();
 
     /** Connection type - BULK or EXPRESS */
     protected final byte type;
@@ -247,7 +246,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         public void run() {
             initThreadLocalCache();
             // only for c++ automatic deallocation
-            @SharedPtr CoreInput cis = TCPConnection.this.cis;
+            @SharedPtr InputStreamBuffer cis = TCPConnection.this.cis;
 
             try {
                 while (!disconnectSignal) {
@@ -262,7 +261,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                     long curTime = 0;
                     PeerList pl = null;
                     boolean notifyWriters = false;
-                    short uid = 0;
+                    DataTypeBase dt;
 
                     // process acknowledgement stuff and other commands common for server and client
                     switch (opCode) {
@@ -289,8 +288,8 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                         break;
 
                     case TCP.UPDATETIME:
-                        uid = cis.readShort();
-                        updateTimes.setTime(uid, cis.readShort());
+                        dt = cis.readType();
+                        updateTimes.setTime(dt, cis.readShort());
                         break;
 
                     case TCP.PULLCALL:
@@ -455,7 +454,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         @Override
         public void run() {
             initThreadLocalCache();
-            @SharedPtr CoreOutput cos = TCPConnection.this.cos;
+            @SharedPtr OutputStreamBuffer cos = TCPConnection.this.cos;
 
             try {
 
@@ -826,7 +825,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         // forward update time change to connection partner
         TCPCommand tc = TCP.getUnusedTCPCommand();
         tc.opCode = TCP.UPDATETIME;
-        tc.datatypeuid = dt == null ? -1 : dt.getUid();
+        tc.datatype = dt;
         tc.updateInterval = newUpdateTime;
         sendCall(tc);
     }
@@ -860,9 +859,9 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
             // deserialize pull call
             PullCall pc = ThreadLocalCache.getFast().getUnusedPullCall();
             try {
-                cis.setBufferSource(port.getPort());
+                cis.setFactory(port.getPort());
                 pc.deserialize(cis);
-                cis.setBufferSource(null);
+                cis.setFactory(null);
 
                 // debug output
                 log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Pull return call " + (port != null ? port.getPort().getQualifiedName() : handle) + " status: " + pc.getStatusString());
@@ -951,15 +950,15 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
 
             boolean skipCall = (!port.getPort().isReady());
             MethodCall mc = ThreadLocalCache.getFast().getUnusedMethodCall();
-            cis.setBufferSource(skipCall ? null : port.getPort());
+            cis.setFactory(skipCall ? null : port.getPort());
             try {
                 mc.deserializeCall(cis, methodType, skipCall);
             } catch (Exception e) {
-                cis.setBufferSource(null);
+                cis.setFactory(null);
                 mc.recycle();
                 return;
             }
-            cis.setBufferSource(null);
+            cis.setFactory(null);
 
             // process call
             log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Method call " + (port != null ? port.getPort().getQualifiedName() : handle) + " " + mc.getMethod().getName());
@@ -1006,16 +1005,16 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
             // create/decode call
             MethodCall mc = ThreadLocalCache.getFast().getUnusedMethodCall();
             //boolean skipCall = (methodType == null || (!methodType.isMethodType()));
-            cis.setBufferSource(port.getPort());
+            cis.setFactory(port.getPort());
             try {
                 mc.deserializeCall(cis, methodType, false);
             } catch (Exception e) {
                 cis.toSkipTarget();
-                cis.setBufferSource(null);
+                cis.setFactory(null);
                 mc.recycle();
                 return;
             }
-            cis.setBufferSource(null);
+            cis.setFactory(null);
 
             // process call
             log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Method call return " + (port != null ? port.getPort().getQualifiedName() : handle));

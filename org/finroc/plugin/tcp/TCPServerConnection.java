@@ -41,6 +41,9 @@ import org.finroc.jc.stream.ChunkedBuffer;
 import org.finroc.jc.stream.LargeIntermediateStreamBuffer;
 import org.finroc.jc.thread.ThreadUtil;
 import org.finroc.log.LogLevel;
+import org.finroc.serialization.DataTypeBase;
+import org.finroc.serialization.InputStreamBuffer;
+import org.finroc.serialization.OutputStreamBuffer;
 
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
@@ -48,13 +51,12 @@ import org.finroc.core.FrameworkElementTreeFilter;
 import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.RuntimeListener;
-import org.finroc.core.buffer.CoreInput;
-import org.finroc.core.buffer.CoreOutput;
+import org.finroc.core.datatype.CoreNumber;
 import org.finroc.core.datatype.FrameworkElementInfo;
 import org.finroc.core.port.AbstractPort;
 import org.finroc.core.port.PortCreationInfo;
 import org.finroc.core.port.PortFlags;
-import org.finroc.core.port.net.RemoteTypes;
+import org.finroc.core.portdatabase.FinrocTypeInfo;
 import org.finroc.core.thread.CoreLoopThreadBase;
 
 /**
@@ -89,10 +91,10 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     @PassByValue private ChunkedBuffer runtimeInfoBuffer = new ChunkedBuffer(false);
 
     /** For any thread that writes runtime changes - note that when declared in this order, writer will be deleted/closed before runtimeInfoBuffer (that's intended and the correct order) */
-    @PassByValue private CoreOutput runtimeInfoWriter = new CoreOutput(runtimeInfoBuffer);
+    @PassByValue private OutputStreamBuffer runtimeInfoWriter = new OutputStreamBuffer(runtimeInfoBuffer);
 
     /** For network writer thread that forwards runtime change information */
-    @PassByValue private CoreInput runtimeInfoReader = new CoreInput(runtimeInfoBuffer.getDestructiveSource());
+    @PassByValue private InputStreamBuffer runtimeInfoReader = new InputStreamBuffer(runtimeInfoBuffer.getDestructiveSource());
 
     /** Framework element filter to decide which data is interesting for client */
     private FrameworkElementTreeFilter elementFilter = new FrameworkElementTreeFilter();
@@ -116,19 +118,21 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
 
             // initialize core streams (counter part to RemoteServer.Connection constructor)
             @SharedPtr LargeIntermediateStreamBuffer lmBuf = new LargeIntermediateStreamBuffer(s.getSink());
-            cos = new CoreOutput(lmBuf);
+            cos = new OutputStreamBuffer(lmBuf, updateTimes);
             //cos = new CoreOutputStream(new BufferedOutputStreamMod(s.getOutputStream()));
             cos.writeLong(RuntimeEnvironment.getInstance().getCreationTime()); // write base timestamp
-            RemoteTypes.serializeLocalDataTypes(cos);
+            //RemoteTypes.serializeLocalDataTypes(cos);
+            cos.writeType(CoreNumber.TYPE);
             cos.flush();
 
             // init port set here, since it might be serialized to stream
             portSet = new PortSet(server, this);
             portSet.init();
 
-            cis = new CoreInput(s.getSource());
-            cis.setTypeTranslation(updateTimes);
-            updateTimes.deserialize(cis);
+            cis = new InputStreamBuffer(s.getSource(), updateTimes);
+            //updateTimes.deserialize(cis);
+            DataTypeBase dt = cis.readType();
+            assert(dt == CoreNumber.TYPE);
 
             String typeString = getConnectionTypeString();
 
@@ -212,9 +216,9 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
                         cis.toSkipTarget();
                     } else {
                         byte changedFlag = cis.readByte();
-                        cis.setBufferSource(p.getPort());
+                        cis.setFactory(p.getPort());
                         p.receiveDataFromStream(cis, System.currentTimeMillis(), changedFlag);
-                        cis.setBufferSource(null);
+                        cis.setFactory(null);
                     }
                 }
             } else {
@@ -325,6 +329,17 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
 
         // updated runtime information
         while (runtimeInfoReader.moreDataAvailable()) {
+            if (updateTimes.typeUpdateNecessary()) {
+
+                // use update time tcp command to trigger type update
+                @PassByValue TCPCommand tc = new TCPCommand();
+                tc.opCode = TCP.UPDATETIME;
+                tc.datatype = CoreNumber.TYPE;
+                tc.updateInterval = FinrocTypeInfo.get(CoreNumber.TYPE).getUpdateTime();
+                tc.serialize(cos);
+                terminateCommand();
+
+            }
             cos.writeAllAvailable(runtimeInfoReader);
         }
 

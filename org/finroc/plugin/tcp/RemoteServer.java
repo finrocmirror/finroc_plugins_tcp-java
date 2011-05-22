@@ -48,6 +48,9 @@ import org.finroc.jc.stream.LargeIntermediateStreamBuffer;
 import org.finroc.jc.thread.ThreadUtil;
 import org.finroc.log.LogDomain;
 import org.finroc.log.LogLevel;
+import org.finroc.serialization.DataTypeBase;
+import org.finroc.serialization.InputStreamBuffer;
+import org.finroc.serialization.OutputStreamBuffer;
 
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
@@ -57,8 +60,7 @@ import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.RuntimeListener;
 import org.finroc.core.admin.AdminClient;
 import org.finroc.core.admin.AdminServer;
-import org.finroc.core.buffer.CoreInput;
-import org.finroc.core.buffer.CoreOutput;
+import org.finroc.core.datatype.CoreNumber;
 import org.finroc.core.datatype.FrameworkElementInfo;
 import org.finroc.core.port.AbstractPort;
 import org.finroc.core.port.PortCreationInfo;
@@ -206,7 +208,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
      * @param typeLookup Remote Type Database
      * @param Are we communicating with a new server?
      */
-    private void retrieveRemotePorts(@Ptr CoreInput cis, @Ptr CoreOutput cos, @Ptr RemoteTypes typeLookup, boolean newServer) {
+    private void retrieveRemotePorts(@Ptr InputStreamBuffer cis, @Ptr OutputStreamBuffer cos, @Ptr RemoteTypes typeLookup, boolean newServer) {
 
         // recreate/reset monitoring lists if there has already been a connection
         portIterator.reset();
@@ -749,20 +751,22 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
             // write stream id
             @SharedPtr LargeIntermediateStreamBuffer lmBuf = new LargeIntermediateStreamBuffer(socket_.getSink());
-            cos = new CoreOutput(lmBuf);
+            cos = new OutputStreamBuffer(lmBuf, updateTimes);
             cos.writeByte(type);
-            RemoteTypes.serializeLocalDataTypes(cos);
+            //RemoteTypes.serializeLocalDataTypes(cos);
+            cos.writeType(CoreNumber.TYPE); // initialize type register
             boolean bulk = type == TCP.TCP_P2P_ID_BULK;
             String typeString = getConnectionTypeString();
             cos.writeBoolean(bulk);
             cos.flush();
 
             // initialize core streams
-            cis = new CoreInput(socket_.getSource());
-            cis.setTypeTranslation(updateTimes);
+            cis = new InputStreamBuffer(socket_.getSource(), updateTimes);
             cis.setTimeout(1000);
             timeBase = cis.readLong(); // Timestamp that remote runtime was created - and relative to which time is encoded in this stream
-            updateTimes.deserialize(cis);
+            //updateTimes.deserialize(cis);
+            DataTypeBase dt = cis.readType();
+            assert(dt == CoreNumber.TYPE);
             cis.setTimeout(-1);
 
             @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Client " + typeString + "-Listener for " + getDescription()));
@@ -835,9 +839,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                             cis.toSkipTarget();
                         } else {
                             byte changedFlag = cis.readByte();
-                            cis.setBufferSource(p.getPort());
+                            cis.setFactory(p.getPort());
                             p.receiveDataFromStream(cis, Time.getCoarse(), changedFlag);
-                            cis.setBufferSource(null);
+                            cis.setFactory(null);
                         }
                     }
                 } else {
