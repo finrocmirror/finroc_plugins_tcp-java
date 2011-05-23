@@ -29,6 +29,7 @@ import org.finroc.jc.Time;
 import org.finroc.jc.annotation.AtFront;
 import org.finroc.jc.annotation.Const;
 import org.finroc.jc.annotation.CppInclude;
+import org.finroc.jc.annotation.CppType;
 import org.finroc.jc.annotation.Friend;
 import org.finroc.jc.annotation.InCpp;
 import org.finroc.jc.annotation.JavaOnly;
@@ -137,6 +138,18 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
     @JavaOnly
     private final AdminClient adminInterface;
 
+    /** String to display when connecting */
+    @CppType("const char*")
+    private static final String CONNECTING = "connecting";
+
+    /** String to display when disconnecting */
+    @CppType("const char*")
+    private static final String DISCONNECTING = "disconnecting";
+
+    /** Not null when currently connecting or disconnecting */
+    @InCpp("const char* volatile statusString;")
+    private volatile String statusString = null;
+
     /** Log domain for this class */
     @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
@@ -168,6 +181,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
      * Connect to remote server
      */
     private synchronized void connect() throws Exception {
+        statusString = CONNECTING;
 
         // reset disconnect count
         disconnectCalls.set(0);
@@ -193,6 +207,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         try {
             express.connect(socketExpress, express); // express first, since it's required for retrieving ports, which is done in bulk connection
             bulk.connect(socketBulk, bulk);
+            statusString = null;
         } catch (Exception e) {
             this.bulk = null;
             this.express = null;
@@ -397,6 +412,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         }
 
         synchronized (this) {
+            statusString = DISCONNECTING;
             if (bulk != null) {
                 bulk.disconnect();
                 bulk = null; // needed afterwards so commmented out
@@ -424,6 +440,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 }
                 elemIterator.reset();
             }
+            statusString = null;
         }
     }
 
@@ -1047,8 +1064,8 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
     /**
      * @return Connection quality (see ExternalConnection)
      */
-    public synchronized float getConnectionQuality() {
-        if (bulk == null && express == null) {
+    public float getConnectionQuality() {
+        if (bulk == null || express == null || statusString != null) {
             return 0;
         }
         float pingTime = 0;
@@ -1073,7 +1090,11 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
     /**
      * @return String containing ping times
      */
-    public synchronized String getPingString() {
+    public String getPingString() {
+        if (statusString != null) {
+            return statusString;
+        }
+
         int pingAvg = 0;
         int pingMax = 0;
         int dataRate = 0;

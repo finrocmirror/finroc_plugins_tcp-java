@@ -118,6 +118,9 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
     /** Ping time for last packages (Index is n % AVG_PING_PACKETS => efficient and safe implementation (ring queue)) */
     private final int[] pingTimes = new int[TCPSettings.AVG_PING_PACKETS + 1];
 
+    /** Ping time statistics */
+    private volatile int avgPingTime, maxPingTime;
+
     /** Signal for disconnecting */
     private volatile boolean disconnectSignal = false;
 
@@ -262,6 +265,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                     PeerList pl = null;
                     boolean notifyWriters = false;
                     DataTypeBase dt;
+                    boolean updateStats = false;
 
                     // process acknowledgement stuff and other commands common for server and client
                     switch (opCode) {
@@ -281,6 +285,10 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                         curTime = System.currentTimeMillis();
                         for (int i = lastAcknowledgedPacket + 1; i <= index; i++) {
                             pingTimes[i & TCPSettings.AVG_PING_PACKETS] = (int)(curTime - sentPacketTime[i & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS]);
+                            updateStats = true;
+                        }
+                        if (updateStats) {
+                            updatePingStatistics();
                         }
 
                         lastAcknowledgedPacket = index;
@@ -695,25 +703,31 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
     }
 
     /**
+     * Updates ping statistic variables
+     */
+    private void updatePingStatistics() {
+        int result = 0;
+        int resultAvg = 0;
+        for (@SizeT int i = 0; i < pingTimes.length; i++) {
+            result = Math.max(result, pingTimes[i]);
+            resultAvg += pingTimes[i];
+        }
+        maxPingTime = result;
+        avgPingTime = resultAvg / pingTimes.length;
+    }
+
+    /**
      * @return Maximum ping time among last TCPSettings.AVG_PING_PACKETS packets
      */
     public int getMaxPingTime() {
-        int result = 0;
-        for (@SizeT int i = 0; i < pingTimes.length; i++) {
-            result = Math.max(result, pingTimes[i]);
-        }
-        return result;
+        return maxPingTime;
     }
 
     /**
      * @return Average ping time among last TCPSettings.AVG_PING_PACKETS packets
      */
     public int getAvgPingTime() {
-        int result = 0;
-        for (@SizeT int i = 0; i < pingTimes.length; i++) {
-            result += pingTimes[i];
-        }
-        return result / pingTimes.length;
+        return avgPingTime;
     }
 
     /**
