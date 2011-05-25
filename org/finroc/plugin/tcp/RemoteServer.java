@@ -211,6 +211,8 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         } catch (Exception e) {
             this.bulk = null;
             this.express = null;
+            socketExpress.close();
+            socketBulk.close();
             throw e;
         }
     }
@@ -982,6 +984,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                     }
                 } catch (Exception e) {
                     log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
+                    Thread.sleep(2000);
                     if (bulk == null) {
                         ctBulk = null;
                     }

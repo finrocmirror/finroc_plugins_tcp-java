@@ -131,6 +131,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
 
             cis = new InputStreamBuffer(s.getSource(), updateTimes);
             //updateTimes.deserialize(cis);
+            cis.setTimeout(1000);
             DataTypeBase dt = cis.readType();
             assert(dt == CoreNumber.TYPE);
 
@@ -151,6 +152,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
                 cos.writeByte(0); // terminator
                 cos.flush();
             }
+            cis.setTimeout(0);
 
             // start incoming data listener thread
             @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Server " + typeString + "-Listener for " + s.getRemoteSocketAddress().toString()));
