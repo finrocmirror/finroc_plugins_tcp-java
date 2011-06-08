@@ -1162,4 +1162,16 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         }
         return null;
     }
+
+    @Override @JavaOnly
+    public FrameworkElement getRemoteElement(int handle) {
+        if (!isReady()) {
+            return null;
+        }
+        if (handle >= 0) {
+            return remotePortRegister.get(handle).getPort();
+        } else {
+            return remoteElementRegister.get(-handle);
+        }
+    }
 }
