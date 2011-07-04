@@ -19,7 +19,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package org.finroc.plugin.tcp;
+package org.finroc.plugins.tcp;
 
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElementTreeFilter;
@@ -29,14 +29,14 @@ import org.finroc.core.plugin.CreateExternalConnectionAction;
 import org.finroc.core.plugin.ExternalConnection;
 import org.finroc.core.plugin.Plugin;
 import org.finroc.core.plugin.Plugins;
-import org.finroc.jc.AutoDeleter;
-import org.finroc.jc.HasDestructor;
-import org.finroc.jc.annotation.AtFront;
-import org.finroc.jc.annotation.ForwardDecl;
-import org.finroc.jc.annotation.InCppFile;
-import org.finroc.jc.annotation.PassByValue;
-import org.finroc.jc.annotation.Ptr;
-import org.finroc.jc.container.ReusablesPoolCR;
+import org.rrlib.finroc_core_utils.jc.AutoDeleter;
+import org.rrlib.finroc_core_utils.jc.HasDestructor;
+import org.rrlib.finroc_core_utils.jc.annotation.AtFront;
+import org.rrlib.finroc_core_utils.jc.annotation.ForwardDecl;
+import org.rrlib.finroc_core_utils.jc.annotation.InCppFile;
+import org.rrlib.finroc_core_utils.jc.annotation.PassByValue;
+import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
+import org.rrlib.finroc_core_utils.jc.container.ReusablesPoolCR;
 
 /**
  * @author max

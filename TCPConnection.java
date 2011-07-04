@@ -19,40 +19,40 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package org.finroc.plugin.tcp;
+package org.finroc.plugins.tcp;
 
-import org.finroc.jc.log.LogDefinitions;
-import org.finroc.jc.log.LogUser;
-import org.finroc.jc.net.EOFException;
-import org.finroc.jc.net.IPAddress;
+import org.rrlib.finroc_core_utils.jc.log.LogDefinitions;
+import org.rrlib.finroc_core_utils.jc.log.LogUser;
+import org.rrlib.finroc_core_utils.jc.net.EOFException;
+import org.rrlib.finroc_core_utils.jc.net.IPAddress;
 
 import java.net.SocketException;
 
-import org.finroc.jc.ArrayWrapper;
-import org.finroc.jc.AtomicDoubleInt;
-import org.finroc.jc.HasDestructor;
-import org.finroc.jc.MutexLockOrder;
-import org.finroc.jc.Time;
-import org.finroc.jc.annotation.AtFront;
-import org.finroc.jc.annotation.Const;
-import org.finroc.jc.annotation.Friend;
-import org.finroc.jc.annotation.InCpp;
-import org.finroc.jc.annotation.InCppFile;
-import org.finroc.jc.annotation.IncludeClass;
-import org.finroc.jc.annotation.Ptr;
-import org.finroc.jc.annotation.Ref;
-import org.finroc.jc.annotation.SharedPtr;
-import org.finroc.jc.annotation.SizeT;
-import org.finroc.jc.annotation.WeakPtr;
-import org.finroc.jc.container.Reusable;
-import org.finroc.jc.container.SafeConcurrentlyIterableList;
-import org.finroc.jc.container.WonderQueue;
-import org.finroc.jc.net.NetSocket;
-import org.finroc.log.LogDomain;
-import org.finroc.log.LogLevel;
-import org.finroc.serialization.DataTypeBase;
-import org.finroc.serialization.InputStreamBuffer;
-import org.finroc.serialization.OutputStreamBuffer;
+import org.rrlib.finroc_core_utils.jc.ArrayWrapper;
+import org.rrlib.finroc_core_utils.jc.AtomicDoubleInt;
+import org.rrlib.finroc_core_utils.jc.HasDestructor;
+import org.rrlib.finroc_core_utils.jc.MutexLockOrder;
+import org.rrlib.finroc_core_utils.jc.Time;
+import org.rrlib.finroc_core_utils.jc.annotation.AtFront;
+import org.rrlib.finroc_core_utils.jc.annotation.Const;
+import org.rrlib.finroc_core_utils.jc.annotation.Friend;
+import org.rrlib.finroc_core_utils.jc.annotation.InCpp;
+import org.rrlib.finroc_core_utils.jc.annotation.InCppFile;
+import org.rrlib.finroc_core_utils.jc.annotation.IncludeClass;
+import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
+import org.rrlib.finroc_core_utils.jc.annotation.Ref;
+import org.rrlib.finroc_core_utils.jc.annotation.SharedPtr;
+import org.rrlib.finroc_core_utils.jc.annotation.SizeT;
+import org.rrlib.finroc_core_utils.jc.annotation.WeakPtr;
+import org.rrlib.finroc_core_utils.jc.container.Reusable;
+import org.rrlib.finroc_core_utils.jc.container.SafeConcurrentlyIterableList;
+import org.rrlib.finroc_core_utils.jc.container.WonderQueue;
+import org.rrlib.finroc_core_utils.jc.net.NetSocket;
+import org.rrlib.finroc_core_utils.log.LogDomain;
+import org.rrlib.finroc_core_utils.log.LogLevel;
+import org.rrlib.finroc_core_utils.serialization.DataTypeBase;
+import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
+import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
 
 import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeSettings;

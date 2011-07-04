@@ -19,31 +19,31 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package org.finroc.plugin.tcp;
+package org.finroc.plugins.tcp;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.finroc.jc.ArrayWrapper;
-import org.finroc.jc.AtomicInt;
-import org.finroc.jc.AutoDeleter;
-import org.finroc.jc.MutexLockOrder;
-import org.finroc.jc.Time;
-import org.finroc.jc.annotation.CppInclude;
-import org.finroc.jc.annotation.Friend;
-import org.finroc.jc.annotation.JavaOnly;
-import org.finroc.jc.annotation.PassByValue;
-import org.finroc.jc.annotation.Ptr;
-import org.finroc.jc.annotation.SharedPtr;
-import org.finroc.jc.container.SafeConcurrentlyIterableList;
-import org.finroc.jc.net.NetSocket;
-import org.finroc.jc.stream.ChunkedBuffer;
-import org.finroc.jc.stream.LargeIntermediateStreamBuffer;
-import org.finroc.jc.thread.ThreadUtil;
-import org.finroc.log.LogLevel;
-import org.finroc.serialization.DataTypeBase;
-import org.finroc.serialization.InputStreamBuffer;
-import org.finroc.serialization.OutputStreamBuffer;
+import org.rrlib.finroc_core_utils.jc.ArrayWrapper;
+import org.rrlib.finroc_core_utils.jc.AtomicInt;
+import org.rrlib.finroc_core_utils.jc.AutoDeleter;
+import org.rrlib.finroc_core_utils.jc.MutexLockOrder;
+import org.rrlib.finroc_core_utils.jc.Time;
+import org.rrlib.finroc_core_utils.jc.annotation.CppInclude;
+import org.rrlib.finroc_core_utils.jc.annotation.Friend;
+import org.rrlib.finroc_core_utils.jc.annotation.JavaOnly;
+import org.rrlib.finroc_core_utils.jc.annotation.PassByValue;
+import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
+import org.rrlib.finroc_core_utils.jc.annotation.SharedPtr;
+import org.rrlib.finroc_core_utils.jc.container.SafeConcurrentlyIterableList;
+import org.rrlib.finroc_core_utils.jc.net.NetSocket;
+import org.rrlib.finroc_core_utils.jc.stream.ChunkedBuffer;
+import org.rrlib.finroc_core_utils.jc.stream.LargeIntermediateStreamBuffer;
+import org.rrlib.finroc_core_utils.jc.thread.ThreadUtil;
+import org.rrlib.finroc_core_utils.log.LogLevel;
+import org.rrlib.finroc_core_utils.serialization.DataTypeBase;
+import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
+import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
 
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;

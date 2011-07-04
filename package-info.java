@@ -26,7 +26,7 @@
 /**
  * These classes implement the default TCP-based network mechanism.
  */
-package org.finroc.plugin.tcp;
+package org.finroc.plugins.tcp;
 
-import org.finroc.jc.annotation.CppLocation;
-import org.finroc.jc.annotation.Namespace;
+import org.rrlib.finroc_core_utils.jc.annotation.CppLocation;
+import org.rrlib.finroc_core_utils.jc.annotation.Namespace;

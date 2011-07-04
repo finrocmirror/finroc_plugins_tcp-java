@@ -19,10 +19,10 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package org.finroc.plugin.tcp;
+package org.finroc.plugins.tcp;
 
-import org.finroc.jc.GarbageCollector;
-import org.finroc.jc.annotation.Ptr;
+import org.rrlib.finroc_core_utils.jc.GarbageCollector;
+import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
 import org.finroc.core.RuntimeSettings;
 import org.finroc.core.port.PortCreationInfo;
 import org.finroc.core.port.PortFlags;

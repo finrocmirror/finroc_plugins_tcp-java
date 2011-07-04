@@ -19,12 +19,12 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package org.finroc.plugin.tcp;
+package org.finroc.plugins.tcp;
 
 import org.finroc.core.portdatabase.SerializableReusable;
-import org.finroc.serialization.DataTypeBase;
-import org.finroc.serialization.InputStreamBuffer;
-import org.finroc.serialization.OutputStreamBuffer;
+import org.rrlib.finroc_core_utils.serialization.DataTypeBase;
+import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
+import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
 
 /**
  * @author max
