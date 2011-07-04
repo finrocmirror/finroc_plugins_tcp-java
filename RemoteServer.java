@@ -1150,7 +1150,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
     @Override @JavaOnly
     public Integer getRemoteHandle(FrameworkElement element) {
-        if (element.isPort()) {
+        if (element == this) {
+            return RuntimeEnvironment.getInstance().getHandle();
+        } else if (element.isPort()) {
             AbstractPort ap = (AbstractPort)element;
             NetPort np = ap.asNetPort();
             if (np != null) {
@@ -1170,6 +1172,8 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         }
         if (handle >= 0) {
             return remotePortRegister.get(handle).getPort();
+        } else if (handle == RuntimeEnvironment.getInstance().getHandle()) {
+            return this;
         } else {
             return remoteElementRegister.get(-handle);
         }
