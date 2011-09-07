@@ -93,7 +93,7 @@ public class TCPSettings extends FrameworkElement {
     //static final BoolSetting DISPLAY_INCOMING_PORT_UPDATES = inst.add("DISPLAY_INCOMING_TCP_SERVER_COMMANDS", false, true);
 
     private TCPSettings() {
-        super(RuntimeSettings.getInstance(), "TCP Settings");
+        super(RuntimeSettings.getInstance().getParent(), "TCP");
     }
 
     static void initInstance() {
