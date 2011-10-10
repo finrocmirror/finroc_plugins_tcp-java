@@ -561,7 +561,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
         /** Handles (remote) of port's outgoing connections */
         @JavaOnly
-        protected SimpleList<Integer> connections = new SimpleList<Integer>();
+        protected SimpleList<FrameworkElementInfo.ConnectionInfo> connections = new SimpleList<FrameworkElementInfo.ConnectionInfo>();
 
         /**
          * Is port the one that is described by this information?
@@ -712,7 +712,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         public List<AbstractPort> getRemoteEdgeDestinations() {
             ArrayList<AbstractPort> result = new ArrayList<AbstractPort>();
             for (int i = 0; i < connections.size(); i++) {
-                ProxyPort pp = remotePortRegister.get(connections.get(i));
+                ProxyPort pp = remotePortRegister.get(connections.get(i).handle);
                 if (pp != null) {
                     result.add(pp.getPort());
                 }
