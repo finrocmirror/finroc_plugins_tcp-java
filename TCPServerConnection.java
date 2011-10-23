@@ -277,7 +277,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
 
     @Override
     public void runtimeChange(byte changeType, FrameworkElement element) {
-        if (element != RuntimeEnvironment.getInstance() && elementFilter.accept(element, tmp) && changeType != RuntimeListener.PRE_INIT) {
+        if (element != RuntimeEnvironment.getInstance() && elementFilter.accept(element, tmp, changeType == RuntimeListener.REMOVE ? (CoreFlags.READY | CoreFlags.DELETED) : 0) && changeType != RuntimeListener.PRE_INIT) {
             serializeRuntimeChange(changeType, element);
         }
     }
