@@ -24,7 +24,7 @@ package org.finroc.plugins.tcp;
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElementTreeFilter;
 import org.finroc.core.parameter.ConstructorParameters;
-import org.finroc.core.parameter.StructureParameterList;
+import org.finroc.core.parameter.StaticParameterList;
 import org.finroc.core.plugin.CreateExternalConnectionAction;
 import org.finroc.core.plugin.ExternalConnection;
 import org.finroc.core.plugin.Plugin;
@@ -151,7 +151,7 @@ public class TCP implements Plugin, HasDestructor {
         }
 
         @Override
-        public StructureParameterList getParameterTypes() {
+        public StaticParameterList getParameterTypes() {
             return null;
         }
 
