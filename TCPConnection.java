@@ -821,6 +821,8 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         @SharedPtr Writer lockedWriter = writer;
         if (lockedWriter != null && (!disconnectSignal)) {
             lockedWriter.sendCall(call);
+        } else {
+            call.genericRecycle();
         }
     }
 

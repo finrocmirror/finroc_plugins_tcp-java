@@ -129,45 +129,54 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             portSet = new PortSet(server, this);
             portSet.init();
 
-            cis = new InputStreamBuffer(s.getSource(), updateTimes);
-            //updateTimes.deserialize(cis);
-            cis.setTimeout(1000);
-            DataTypeBase dt = cis.readType();
-            assert(dt == CoreNumber.TYPE);
+            try {
 
-            String typeString = getConnectionTypeString();
+                cis = new InputStreamBuffer(s.getSource(), updateTimes);
+                //updateTimes.deserialize(cis);
+                cis.setTimeout(1000);
+                DataTypeBase dt = cis.readType();
+                assert(dt == CoreNumber.TYPE);
 
-            // send runtime information?
-            if (cis.readBoolean()) {
-                elementFilter.deserialize(cis);
-                sendRuntimeInfo = true;
-                synchronized (RuntimeEnvironment.getInstance().getRegistryLock()) { // lock runtime so that we do not miss a change
-                    RuntimeEnvironment.getInstance().addListener(this);
+                String typeString = getConnectionTypeString();
 
-                    //JavaOnlyBlock
-                    elementFilter.traverseElementTree(RuntimeEnvironment.getInstance(), this, null, tmp);
+                // send runtime information?
+                if (cis.readBoolean()) {
+                    elementFilter.deserialize(cis);
+                    sendRuntimeInfo = true;
+                    synchronized (RuntimeEnvironment.getInstance().getRegistryLock()) { // lock runtime so that we do not miss a change
+                        RuntimeEnvironment.getInstance().addListener(this);
 
-                    //Cpp elementFilter.traverseElementTree(core::RuntimeEnvironment::getInstance(), this, false, tmp);
+                        //JavaOnlyBlock
+                        elementFilter.traverseElementTree(RuntimeEnvironment.getInstance(), this, null, tmp);
+
+                        //Cpp elementFilter.traverseElementTree(core::RuntimeEnvironment::getInstance(), this, false, tmp);
+                    }
+                    cos.writeByte(0); // terminator
+                    cos.flush();
                 }
-                cos.writeByte(0); // terminator
-                cos.flush();
+                cis.setTimeout(0);
+
+                // start incoming data listener thread
+                @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Server " + typeString + "-Listener for " + s.getRemoteSocketAddress().toString()));
+                super.reader = listener;
+                listener.lockObject(portSet.connectionLock);
+                listener.start();
+
+                // start writer thread
+                @SharedPtr Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Server " + typeString + "-Writer for " + s.getRemoteSocketAddress().toString()));
+                super.writer = writer;
+                writer.lockObject(portSet.connectionLock);
+                writer.start();
+
+                connections.add(this, false);
+                PingTimeMonitor.getInstance(); // start ping time monitor
+
+            } catch (Exception e) {
+                log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
+                if (portSet != null) {
+                    portSet.managedDelete();
+                }
             }
-            cis.setTimeout(0);
-
-            // start incoming data listener thread
-            @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Server " + typeString + "-Listener for " + s.getRemoteSocketAddress().toString()));
-            super.reader = listener;
-            listener.lockObject(portSet.connectionLock);
-            listener.start();
-
-            // start writer thread
-            @SharedPtr Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Server " + typeString + "-Writer for " + s.getRemoteSocketAddress().toString()));
-            super.writer = writer;
-            writer.lockObject(portSet.connectionLock);
-            writer.start();
-
-            connections.add(this, false);
-            PingTimeMonitor.getInstance(); // start ping time monitor
         }
     }
 
