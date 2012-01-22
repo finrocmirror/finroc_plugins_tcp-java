@@ -58,8 +58,8 @@ public class TCP implements Plugin, HasDestructor {
 
     /** Protocol OpCodes */
     public final static byte SET = 1, SUBSCRIBE = 2, UNSUBSCRIBE = 3, CHANGE_EVENT = 4, PING = 5, PONG = 6, PULLCALL = 7,
-                                   METHODCALL = 8, UPDATETIME = 9, REQUEST_PORT_UPDATE = 10, PORT_UPDATE = 11,
-                                                                PULLCALL_RETURN = 12, METHODCALL_RETURN = 13, PEER_INFO = 14;
+                             METHODCALL = 8, UPDATETIME = 9, REQUEST_PORT_UPDATE = 10, PORT_UPDATE = 11,
+                             PULLCALL_RETURN = 12, METHODCALL_RETURN = 13, PEER_INFO = 14;
 
     /** Return Status */
     public final static byte SUCCESS = 100, FAIL = 101;
