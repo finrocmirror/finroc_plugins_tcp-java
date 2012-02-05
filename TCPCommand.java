@@ -22,7 +22,7 @@
 package org.finroc.plugins.tcp;
 
 import org.finroc.core.portdatabase.SerializableReusable;
-import org.rrlib.finroc_core_utils.serialization.DataTypeBase;
+import org.rrlib.finroc_core_utils.rtti.DataTypeBase;
 import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
 import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
 
