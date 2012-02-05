@@ -169,7 +169,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         address = isa;
 
         //JavaOnlyBlock
-        adminInterface = filter.isAcceptAllFilter() ? new AdminClient("AdminClient " + getDescription(), peer) : null;
+        adminInterface = filter.isAcceptAllFilter() ? new AdminClient("AdminClient " + getName(), peer) : null;
         addAnnotation(new RemoteRuntime(adminInterface, null, this));
 
         RuntimeEnvironment.getInstance().addListener(this);
@@ -310,7 +310,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 if (port == null) { // normal case
                     port = new ProxyPort(info);
                 } else { // refound port
-                    //Cpp printf("refound network port %p %s\n", port, port->getPort()->getCDescription());
+                    //Cpp printf("refound network port %p %s\n", port, port->getPort()->getCName());
                     synchronized (port.getPort()) {
                         port.refound = true;
                         port.connection = (info.getFlags() & PortFlags.IS_EXPRESS_PORT) > 0 ? express : bulk;
@@ -330,7 +330,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                     //fe.yetUnknown = false;
                 } else if (fe != null) { // refound
                     synchronized (fe) {
-                        //Cpp printf("refound network framework element %p %s\n", fe, fe->getCDescription());
+                        //Cpp printf("refound network framework element %p %s\n", fe, fe->getCName());
                         fe.refound = true;
                         assert(fe.matches(info)) : "Structure in server changed - that shouldn't happen";
                         info.opCode = RuntimeListener.CHANGE;
@@ -507,7 +507,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             if ((getAllFlags() & CoreFlags.CONSTANT_FLAGS) != (info.getFlags() & CoreFlags.CONSTANT_FLAGS)) {
                 return false;
             }
-            if (getDescription().equals(info.getLink(0).name)) {
+            if (getName().equals(info.getLink(0).name)) {
                 return false;
             }
             return true;
@@ -522,7 +522,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             if (!isReady()) {
                 assert(info.opCode == RuntimeListener.ADD) : "only add operation may change framework element before initialization";
                 assert(info.getLinkCount() == 1) : "Framework elements currently may not be linked";
-                setDescription(info.getLink(0).name);
+                setName(info.getLink(0).name);
                 getFrameworkElement(info.getLink(0).parent, info.getLink(0).extraFlags, false, info.getLink(0).parent).addChild(this);
             }
             if ((info.getFlags() & CoreFlags.FINSTRUCTED) > 0) {
@@ -582,7 +582,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                         getPort().getQualifiedLink(tmpMatchBuffer, i);
                     } else {
                         tmpMatchBuffer.delete(0, tmpMatchBuffer.length());
-                        tmpMatchBuffer.append(getPort().getLink(i).getDescription());
+                        tmpMatchBuffer.append(getPort().getLink(i).getName());
                     }
                     if (!tmpMatchBuffer.equals(info.getLink(i).name)) {
                         return false;
@@ -637,14 +637,14 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                             getPort().link(parent, portInfo.getLink(i).name);
                         }
                         FrameworkElement parent = (portInfo.getLink(0).extraFlags & CoreFlags.GLOBALLY_UNIQUE_LINK) > 0 ? globalLinks : (FrameworkElement)RemoteServer.this;
-                        getPort().setDescription(portInfo.getLink(0).name);
+                        getPort().setName(portInfo.getLink(0).name);
                         parent.addChild(getPort());
                     } else {
                         for (@SizeT int i = 1; i < portInfo.getLinkCount(); i++) {
                             FrameworkElement parent = getFrameworkElement(portInfo.getLink(i).parent, portInfo.getLink(i).extraFlags, true, 0);
                             getPort().link(parent, portInfo.getLink(i).name);
                         }
-                        getPort().setDescription(portInfo.getLink(0).name);
+                        getPort().setName(portInfo.getLink(0).name);
                         getFrameworkElement(portInfo.getLink(0).parent, portInfo.getLink(0).extraFlags, true, 0).addChild(getPort());
                     }
                 }
@@ -788,9 +788,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             assert(dt == CoreNumber.TYPE);
             cis.setTimeout(-1);
 
-            @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Client " + typeString + "-Listener for " + getDescription()));
+            @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Client " + typeString + "-Listener for " + getName()));
             super.reader = listener;
-            @SharedPtr Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Client " + typeString + "-Writer for " + getDescription()));
+            @SharedPtr Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Client " + typeString + "-Writer for " + getName()));
             super.writer = writer;
 
             if (bulk) {
@@ -954,8 +954,8 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
         public ConnectorThread() {
             super(TCPSettings.CONNECTOR_THREAD_LOOP_INTERVAL, false, false);
-            setName("TCP Connector Thread for " + getDescription());
-            log(LogLevel.LL_DEBUG_VERBOSE_1, logDomain, "Creating " + getName());
+            setName("TCP Connector Thread for " + getName());
+            log(LogLevel.LL_DEBUG_VERBOSE_1, logDomain, "Creating " + RemoteServer.this.getName());
             //this.setPriority(1); // low priority
         }
 
