@@ -954,7 +954,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
 
         public ConnectorThread() {
             super(TCPSettings.CONNECTOR_THREAD_LOOP_INTERVAL, false, false);
-            setName("TCP Connector Thread for " + getName());
+            setName("TCP Connector Thread for " + RemoteServer.this.getName());
             log(LogLevel.LL_DEBUG_VERBOSE_1, logDomain, "Creating " + RemoteServer.this.getName());
             //this.setPriority(1); // low priority
         }
