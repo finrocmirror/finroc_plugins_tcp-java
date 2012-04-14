@@ -783,7 +783,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         // send port data
         @Ptr ArrayWrapper<TCPPort> it = monitoredPorts.getIterable();
         byte changedFlag = 0;
-        for (@SizeT int i = 0, n = monitoredPorts.size(); i < n; i++) {
+        for (@SizeT int i = 0, n = it.size(); i < n; i++) {
             TCPPort pp = it.get(i);
             if (pp != null && pp.getPort().isReady()) {
                 if (pp.getLastUpdate() + pp.getUpdateIntervalForNet() > startTime) {
