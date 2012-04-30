@@ -56,10 +56,34 @@ public class TCP implements Plugin, HasDestructor {
     /** Stream IDs for different connection types */
     public static final byte TCP_P2P_ID_EXPRESS = 9, TCP_P2P_ID_BULK = 10;
 
-    /** Protocol OpCodes */
-    public final static byte SET = 1, SUBSCRIBE = 2, UNSUBSCRIBE = 3, CHANGE_EVENT = 4, PING = 5, PONG = 6, PULLCALL = 7,
-                             METHODCALL = 8, UPDATETIME = 9, REQUEST_PORT_UPDATE = 10, PORT_UPDATE = 11,
-                             PULLCALL_RETURN = 12, METHODCALL_RETURN = 13, PEER_INFO = 14;
+    /**
+     * Protocol OpCodes
+     *
+     * TODO: protocol could be optimized/simplified
+     *
+     * payload is   [int8: data encoding]
+     *            n*[bool8 another buffer? == true][int16: data type uid][int8: encoding][binary blob or null-terminated string depending on type encoding]
+     *              [bool8 another buffer? == false]
+     *
+     * parameter is [int8: parameter type? == NULL_PARAM]
+     *              [int8: parameter type? == NUMBER][serialized tCoreNumber]
+     *              [int8: parameter_type? == OBJECT][int16: data type][serialized data][bool8: write lockid? if TRUE, followed by int32 lock id]
+     */
+    public enum OpCode {
+        SET,               // Port data set operation             [int32: remote port handle][int32: skip offset][int8: changed flag][payload](skip target)
+        SUBSCRIBE,         // Subscribe to data port              [int32: remote port handle][int16: strategy][bool: reverse push][int16: update interval][int32: local port handle][int8: encoding]
+        UNSUBSCRIBE,       // Unsubscribe from data port          [int32: remote port handle]
+        CHANGE_EVENT,      // Change event from subscription      [int32: remote port handle][int32: skip offset][int8: changed flag][payload](skip target)
+        PING,              // Ping to determine round-trip time   [int32: packet index]
+        PONG,              // Pong to determine round-trip time   [int32: acknowledged packet index]
+        PULLCALL,          // Pull call                           [int32: remote port handle][int32: local port handle][int32: skip offset][int8: status][int8: exception type][int8: syncher ID][int32: thread uid][int16: method call index][bool8 intermediateAssign][int8: desired encoding](skip target)
+        PULLCALL_RETURN,   // Returning pull call                 [int32: remote port handle][int32: local port handle][int32: skip offset][int8: status][int8: exception type][int8: syncher ID][int32: thread uid][int16: method call index][bool8 intermediateAssign][int8: desired encoding][int16: data type][serialized data](skip target)
+        METHODCALL,        // Method call                         [int32: remote port handle][int32: local port handle][int16: interface type][int32: skip offset][int8: method id][int32: timeout in ms][int8: status][int8: exception type][int8: syncher ID][int32: thread uid][int16: method call index][parameter0][parameter1][parameter2][parameter3](skip target)
+        METHODCALL_RETURN, // Returning Method call               [int32: remote port handle][int32: local port handle][int16: interface type][int32: skip offset][int8: method id][int32: timeout in ms][int8: status][int8: exception type][int8: syncher ID][int32: thread uid][int16: method call index][parameter0][parameter1][parameter2][parameter3](skip target)
+        UPDATE_TIME,       // Update on desired update times      [int16: data type][int16: new update time]
+        STRUCTURE_UPDATE,  // Update on remote framework elements [int8: opcode (e.g. add)][int32: remote handle][int32: flags][bool8: only ports?]... (see serializeFrameworkElement() in FrameworkElementInfo)
+        PEER_INFO          // Information about other peers       [int32+int16: IP and port of this runtime in partner's network interface][int32: known peer count n] n*[int32+int16: address of peer[i]]
+    }
 
     /** Return Status */
     public final static byte SUCCESS = 100, FAIL = 101;

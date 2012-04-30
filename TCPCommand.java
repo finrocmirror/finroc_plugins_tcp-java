@@ -25,6 +25,7 @@ import org.finroc.core.portdatabase.SerializableReusable;
 import org.rrlib.finroc_core_utils.rtti.DataTypeBase;
 import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
 import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
+import org.rrlib.finroc_core_utils.serialization.Serialization;
 
 /**
  * @author max
@@ -34,7 +35,7 @@ import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
 public class TCPCommand extends SerializableReusable {
 
     /** OpCode - see TCP class */
-    public byte opCode;
+    public TCP.OpCode opCode;
 
     /** Handle of remote port */
     public int remoteHandle;
@@ -54,6 +55,9 @@ public class TCPCommand extends SerializableReusable {
     /** Subscribe with reverse push strategy? */
     public boolean reversePush;
 
+    /** Data encoding to use */
+    public Serialization.DataEncoding encoding = Serialization.DataEncoding.BINARY;
+
     @Override
     public void deserialize(InputStreamBuffer is) {
         throw new RuntimeException("Unsupported - not needed - server decodes directly (more efficient)");
@@ -61,19 +65,20 @@ public class TCPCommand extends SerializableReusable {
 
     @Override
     public void serialize(OutputStreamBuffer os) {
-        os.writeByte(opCode);
+        os.writeEnum(opCode);
         switch (opCode) {
-        case TCP.SUBSCRIBE:
+        case SUBSCRIBE:
             os.writeInt(remoteHandle);
             os.writeShort(strategy);
             os.writeBoolean(reversePush);
             os.writeShort(updateInterval);
             os.writeInt(localIndex);
+            os.writeEnum(encoding);
             break;
-        case TCP.UNSUBSCRIBE:
+        case UNSUBSCRIBE:
             os.writeInt(remoteHandle);
             break;
-        case TCP.UPDATETIME:
+        case UPDATE_TIME:
             os.writeType(datatype);
             os.writeShort(updateInterval);
             break;

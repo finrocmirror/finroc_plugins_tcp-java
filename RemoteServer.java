@@ -52,6 +52,7 @@ import org.rrlib.finroc_core_utils.log.LogLevel;
 import org.rrlib.finroc_core_utils.rtti.DataTypeBase;
 import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
 import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
+import org.rrlib.finroc_core_utils.serialization.Serialization;
 
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
@@ -180,40 +181,50 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
     /**
      * Connect to remote server
      */
-    private synchronized void connect() throws Exception {
-        statusString = CONNECTING;
+    private void connect() throws Exception {
+        synchronized (this) {
+            statusString = CONNECTING;
 
-        // reset disconnect count
-        disconnectCalls.set(0);
+            // reset disconnect count
+            disconnectCalls.set(0);
+        }
 
         // try connecting...
         @SharedPtr NetSocket socketExpress = NetSocket.createInstance(address);
         @SharedPtr NetSocket socketBulk = NetSocket.createInstance(address);
 
-        // connect
-        //Cpp finroc::util::GarbageCollector::Functor deleter;
-        @InCpp("std::shared_ptr<Connection> express(new Connection(this, _T_TCP::TCP_P2P_ID_EXPRESS), deleter);")
-        @SharedPtr Connection express = new Connection(TCP.TCP_P2P_ID_EXPRESS);
-        @InCpp("std::shared_ptr<Connection> bulk(new Connection(this, _T_TCP::TCP_P2P_ID_BULK), deleter);")
-        @SharedPtr Connection bulk = new Connection(TCP.TCP_P2P_ID_BULK);
+        synchronized (this) {
+            if (disconnectCalls.get() > 0) {
+                socketExpress.close();
+                socketBulk.close();
+                return;
+            }
 
-        // Set bulk and express here, because of other threads that might try to access them
-        this.bulk = bulk;
-        this.express = express;
-        connectorThread.ctBulk = bulk;
-        connectorThread.ctExpress = express;
+            // connect
+            //Cpp finroc::util::GarbageCollector::Functor deleter;
+            @InCpp("std::shared_ptr<Connection> express(new Connection(this, _T_TCP::TCP_P2P_ID_EXPRESS), deleter);")
+            @SharedPtr Connection express = new Connection(TCP.TCP_P2P_ID_EXPRESS);
+            @InCpp("std::shared_ptr<Connection> bulk(new Connection(this, _T_TCP::TCP_P2P_ID_BULK), deleter);")
+            @SharedPtr Connection bulk = new Connection(TCP.TCP_P2P_ID_BULK);
 
-        // init connections...
-        try {
-            express.connect(socketExpress, express); // express first, since it's required for retrieving ports, which is done in bulk connection
-            bulk.connect(socketBulk, bulk);
-            statusString = null;
-        } catch (Exception e) {
-            this.bulk = null;
-            this.express = null;
-            socketExpress.close();
-            socketBulk.close();
-            throw e;
+            // Set bulk and express here, because of other threads that might try to access them
+            this.bulk = bulk;
+            this.express = express;
+            connectorThread.ctBulk = bulk;
+            connectorThread.ctExpress = express;
+
+            // init connections...
+            try {
+                express.connect(socketExpress, express); // express first, since it's required for retrieving ports, which is done in bulk connection
+                bulk.connect(socketBulk, bulk);
+                statusString = null;
+            } catch (Exception e) {
+                this.bulk = null;
+                this.express = null;
+                socketExpress.close();
+                socketBulk.close();
+                throw e;
+            }
         }
     }
 
@@ -376,7 +387,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         log(LogLevel.LL_DEBUG_VERBOSE_1, logDomain, "RemoteServer: Stopping ConnectorThread");
         connectorThread.stopThread();
         try {
-            connectorThread.join();
+            connectorThread.join(3000); // If we need to wait longer, then Java socket connect hangs. It's no problem to continue in this case.
         } catch (InterruptedException e) {
             log(LogLevel.LL_WARNING, logDomain, "warning: RemoteServer::prepareDelete() - Interrupted waiting for connector thread.");
         }
@@ -700,7 +711,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 } else if (strategy == -1) {
                     // still disconnected
                 } else if (strategy != subscriptionStrategy || time != subscriptionUpdateTime || revPush != subscriptionRevPush) {
-                    c.subscribe(remoteHandle, strategy, revPush, time, p.getHandle());
+                    c.subscribe(remoteHandle, strategy, revPush, time, p.getHandle(), getEncoding());
                     subscriptionStrategy = strategy;
                     subscriptionRevPush = revPush;
                     subscriptionUpdateTime = time;
@@ -827,7 +838,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         }
 
         @Override
-        public void processRequest(byte opCode) throws Exception {
+        public void processRequest(TCP.OpCode opCode) throws Exception {
 
             int portIndex = 0;
             NetPort p = null;
@@ -835,7 +846,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             AbstractPort ap = null;
 
             switch (opCode) {
-            case TCP.CHANGE_EVENT:
+            case CHANGE_EVENT:
 
                 // read port index and retrieve proxy port
                 portIndex = cis.readInt();
@@ -868,7 +879,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 }
                 break;
 
-            case TCP.PORT_UPDATE:
+            case STRUCTURE_UPDATE:
 
                 tmpInfo.deserialize(cis, updateTimes);
                 processPortUpdate(tmpInfo);
@@ -888,15 +899,17 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
          * @param updateInterval Minimum interval in ms between notifications (values <= 0 mean: use server defaults)
          * @param localIndex Local Port Index
          * @param dataType DataType got from server
+         * @param enc Data type to use when writing data to the network
          */
-        public void subscribe(int index, short strategy, boolean reversePush, short updateInterval, int localIndex) {
+        public void subscribe(int index, short strategy, boolean reversePush, short updateInterval, int localIndex, Serialization.DataEncoding enc) {
             TCPCommand command = TCP.getUnusedTCPCommand();
-            command.opCode = TCP.SUBSCRIBE;
+            command.opCode = TCP.OpCode.SUBSCRIBE;
             command.remoteHandle = index;
             command.strategy = strategy;
             command.reversePush = reversePush;
             command.updateInterval = updateInterval;
             command.localIndex = localIndex;
+            command.encoding = enc;
             sendCall(command);
             //command.genericRecycle();
         }
@@ -908,7 +921,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
          */
         public void unsubscribe(int index) {
             TCPCommand command = TCP.getUnusedTCPCommand();
-            command.opCode = TCP.UNSUBSCRIBE;
+            command.opCode = TCP.OpCode.UNSUBSCRIBE;
             command.remoteHandle = index;
             sendCall(command);
             //command.genericRecycle();
@@ -918,7 +931,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         public boolean sendData(long startTime) throws Exception {
 
             // send port data
-            return super.sendDataPrototype(startTime, TCP.SET);
+            return super.sendDataPrototype(startTime, TCP.OpCode.SET);
 
         }
 

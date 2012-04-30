@@ -44,6 +44,7 @@ import org.rrlib.finroc_core_utils.log.LogLevel;
 import org.rrlib.finroc_core_utils.rtti.DataTypeBase;
 import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
 import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
+import org.rrlib.finroc_core_utils.serialization.Serialization;
 
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
@@ -206,14 +207,14 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     }
 
     @Override
-    public void processRequest(byte opCode) throws Exception {
+    public void processRequest(TCP.OpCode opCode) throws Exception {
 
         int handle = 0;
         ServerPort p = null;
 
         switch (opCode) {
 
-        case TCP.SET: // Set data command
+        case SET: // Set data command
 
             handle = cis.readInt();
             cis.readSkipOffset();
@@ -237,7 +238,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             }
             break;
 
-        case TCP.UNSUBSCRIBE: // Unsubscribe data
+        case UNSUBSCRIBE: // Unsubscribe data
 
             handle = cis.readInt();
             p = getPort(handle, false);
@@ -250,18 +251,20 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         default:
             throw new RuntimeException("Unknown OpCode");
 
-        case TCP.SUBSCRIBE: // Subscribe to data
+        case SUBSCRIBE: // Subscribe to data
 
             handle = cis.readInt();
             short strategy = cis.readShort();
             boolean reversePush = cis.readBoolean();
             short updateInterval = cis.readShort();
             int remoteHandle = cis.readInt();
+            Serialization.DataEncoding enc = cis.readEnum(Serialization.DataEncoding.class);
             p = getPort(handle, true);
             log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Subscribe " + (p != null ? p.localPort.getQualifiedName() : handle) + " " + strategy + " " + reversePush + " " + updateInterval + " " + remoteHandle);
             if (p != null) {
                 synchronized (p.getPort().getRegistryLock()) {
                     if (p.getPort().isReady()) {
+                        p.setEncoding(enc);
                         p.getPort().setMinNetUpdateInterval(updateInterval);
                         p.updateIntervalPartner = updateInterval;
                         p.setRemoteHandle(remoteHandle);
@@ -278,7 +281,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     public void treeFilterCallback(FrameworkElement fe, Boolean unused) {
         if (fe != RuntimeEnvironment.getInstance()) {
             if (!fe.isDeleted()) {
-                cos.writeByte(TCP.PORT_UPDATE);
+                cos.writeEnum(TCP.OpCode.STRUCTURE_UPDATE);
                 FrameworkElementInfo.serializeFrameworkElement(fe, RuntimeListener.ADD, cos, elementFilter, tmp);
             }
         }
@@ -292,7 +295,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     }
 
     public void serializeRuntimeChange(byte changeType, FrameworkElement element) {
-        runtimeInfoWriter.writeByte(TCP.PORT_UPDATE);
+        runtimeInfoWriter.writeEnum(TCP.OpCode.STRUCTURE_UPDATE);
         FrameworkElementInfo.serializeFrameworkElement(element, changeType, runtimeInfoWriter, elementFilter, tmp);
         if (TCPSettings.DEBUG_TCP) {
             runtimeInfoWriter.writeInt(TCPSettings.DEBUG_TCP_NUMBER);
@@ -336,7 +339,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     public boolean sendData(long startTime) throws Exception {
 
         // send port data
-        boolean requestAcknowledgement = super.sendDataPrototype(startTime, TCP.CHANGE_EVENT);
+        boolean requestAcknowledgement = super.sendDataPrototype(startTime, TCP.OpCode.CHANGE_EVENT);
 
         // updated runtime information
         while (runtimeInfoReader.moreDataAvailable()) {
@@ -344,7 +347,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
 
                 // use update time tcp command to trigger type update
                 @PassByValue TCPCommand tc = new TCPCommand();
-                tc.opCode = TCP.UPDATETIME;
+                tc.opCode = TCP.OpCode.UPDATE_TIME;
                 tc.datatype = CoreNumber.TYPE;
                 tc.updateInterval = FinrocTypeInfo.get(CoreNumber.TYPE).getUpdateTime();
                 tc.serialize(cos);

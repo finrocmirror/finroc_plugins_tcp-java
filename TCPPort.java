@@ -164,11 +164,11 @@ public abstract class TCPPort extends NetPort {
             return t;
 
             // 3. data type default
-        } else if ((t = FinrocTypeInfo.get(getPort().getDataType()).getUpdateTime()) >= 0) {
+        } else if ((t = FinrocTypeInfo.get(getDataType()).getUpdateTime()) >= 0) {
             return t;
 
             // 4. server data type default
-        } else if (c != null /*&& connection.updateTimes != null*/ && (t = c.updateTimes.getTime(getPort().getDataType())) >= 0) {
+        } else if (c != null /*&& connection.updateTimes != null*/ && (t = c.updateTimes.getTime(getDataType())) >= 0) {
             return t;
         }
 

@@ -69,6 +69,7 @@ import org.finroc.core.port.rpc.RPCThreadPool;
 import org.finroc.core.portdatabase.FinrocTypeInfo;
 import org.finroc.core.portdatabase.SerializableReusable;
 import org.finroc.core.thread.CoreLoopThreadBase;
+import org.finroc.plugins.tcp.TCP.OpCode;
 
 /**
  * @author max
@@ -255,7 +256,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                 while (!disconnectSignal) {
 
                     // we are waiting for change events and acknowledgement related stuff
-                    byte opCode = cis.readByte();
+                    TCP.OpCode opCode = cis.readEnum(TCP.OpCode.class);
                     //System.out.println("Incoming command - opcode " + opCode);
 
                     // create vars before switch-statement (because of C++)
@@ -269,7 +270,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
 
                     // process acknowledgement stuff and other commands common for server and client
                     switch (opCode) {
-                    case TCP.PING:
+                    case PING:
                         ackReqIndex = cis.readInt();
                         if (ackReqIndex != lastAckRequestIndex + 1) {
                             throw new Exception("Invalid acknowledgement request");
@@ -278,7 +279,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                         notifyWriter();
                         break;
 
-                    case TCP.PONG:
+                    case PONG:
                         index = cis.readInt();
 
                         // set ping times
@@ -295,28 +296,28 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                         notifyWriter();
                         break;
 
-                    case TCP.UPDATETIME:
+                    case UPDATE_TIME:
                         dt = cis.readType();
                         updateTimes.setTime(dt, cis.readShort());
                         break;
 
-                    case TCP.PULLCALL:
+                    case PULLCALL:
                         handlePullCall();
                         break;
 
-                    case TCP.PULLCALL_RETURN:
+                    case PULLCALL_RETURN:
                         handleReturningPullCall();
                         break;
 
-                    case TCP.METHODCALL:
+                    case METHODCALL:
                         handleMethodCall();
                         break;
 
-                    case TCP.METHODCALL_RETURN:
+                    case METHODCALL_RETURN:
                         handleMethodCallReturn();
                         break;
 
-                    case TCP.PEER_INFO:
+                    case PEER_INFO:
                         cis.readSkipOffset();
                         if (peer == null) {
                             cis.toSkipTarget();
@@ -526,7 +527,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                     }
 
                     if (requestAcknowledgement) {
-                        cos.writeByte(TCP.PING);
+                        cos.writeEnum(TCP.OpCode.PING);
                         curPacketIndex++;
                         cos.writeInt(curPacketIndex);
                         sentPacketTime[curPacketIndex & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS] = System.currentTimeMillis();
@@ -584,7 +585,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
 
             // send receive notification
             if (lastAckIndex < lastAckRequestIndex) {
-                cos.writeByte(TCP.PONG);
+                cos.writeEnum(TCP.OpCode.PONG);
                 lastAckIndex = lastAckRequestIndex;
                 cos.writeInt(lastAckIndex);
                 terminateCommand();
@@ -596,14 +597,14 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                 assert(call.stateChange(Reusable.ENQUEUED, Reusable.POST_QUEUED, TCPConnection.this));
                 if (call instanceof PullCall) {
                     PullCall pc = (PullCall)call;
-                    cos.writeByte(pc.isReturning(true) ? TCP.PULLCALL_RETURN : TCP.PULLCALL);
+                    cos.writeEnum(pc.isReturning(true) ? TCP.OpCode.PULLCALL_RETURN : TCP.OpCode.PULLCALL);
                     cos.writeInt(pc.getRemotePortHandle());
                     cos.writeInt(pc.getLocalPortHandle());
                     cos.writeSkipOffsetPlaceholder();
                 } else if (call instanceof MethodCall) {
                     MethodCall mc = (MethodCall)call;
                     //assert(mc.getMethod() != null); can be null - if type is not known and we want to return call
-                    cos.writeByte(mc.isReturning(true) ? TCP.METHODCALL_RETURN : TCP.METHODCALL);
+                    cos.writeEnum(mc.isReturning(true) ? TCP.OpCode.METHODCALL_RETURN : TCP.OpCode.METHODCALL);
                     cos.writeInt(mc.getRemotePortHandle());
                     cos.writeInt(mc.getLocalPortHandle());
                     cos.writeType(mc.getPortInterfaceType());
@@ -622,7 +623,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                 int peerInfoRevision = peer.getPeerList().getRevision();
                 if (lastPeerInfoSentRevision < peerInfoRevision) {
                     lastPeerInfoSentRevision = peerInfoRevision;
-                    cos.writeByte(TCP.PEER_INFO);
+                    cos.writeEnum(TCP.OpCode.PEER_INFO);
                     cos.writeSkipOffsetPlaceholder();
                     socket.getRemoteIPSocketAddress().getAddress().serialize(cos);
                     peer.getPeerList().serializeAddresses(cos);
@@ -777,7 +778,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
      * @param opCode OpCode to use for send operations
      * @return Is this an packet that needs acknowledgement ?
      */
-    public boolean sendDataPrototype(long startTime, byte opCode) throws Exception {
+    public boolean sendDataPrototype(long startTime, TCP.OpCode opCode) throws Exception {
         boolean requestAcknowledgement = false;
 
         // send port data
@@ -797,7 +798,7 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                     pp.setLastUpdate(startTime);
 
                     // execute/write set command to stream
-                    cos.writeByte(opCode);
+                    cos.writeEnum(opCode);
                     cos.writeInt(pp.getRemoteHandle());
                     cos.writeSkipOffsetPlaceholder();
                     cos.writeByte(changedFlag);
@@ -834,13 +835,13 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
     /**
      * Called when listener receives request
      */
-    public abstract void processRequest(byte opCode) throws Exception;
+    public abstract void processRequest(OpCode opCode) throws Exception;
 
     @Override
     public void updateTimeChanged(@Const @Ref DataTypeBase dt, short newUpdateTime) {
         // forward update time change to connection partner
         TCPCommand tc = TCP.getUnusedTCPCommand();
-        tc.opCode = TCP.UPDATETIME;
+        tc.opCode = TCP.OpCode.UPDATE_TIME;
         tc.datatype = dt;
         tc.updateInterval = newUpdateTime;
         sendCall(tc);
