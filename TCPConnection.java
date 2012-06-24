@@ -152,6 +152,9 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
     /** Needs to be locked after framework elements, but before runtime registry */
     public final MutexLockOrder objMutex = new MutexLockOrder(LockOrderLevels.REMOTE + 1);
 
+    /** Log description for connection */
+    protected String description;
+
     /** Log domain for this class */
     @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
@@ -1066,5 +1069,9 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
         double data = lastRxPosition - lastPos;
         double interval = (lastRxTimestamp - lastTime) / 1000;
         return (int)(data / interval);
+    }
+
+    public String getLogDescription() {
+        return description;
     }
 }

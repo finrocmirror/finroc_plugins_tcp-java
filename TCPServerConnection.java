@@ -54,6 +54,7 @@ import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.RuntimeListener;
 import org.finroc.core.datatype.CoreNumber;
 import org.finroc.core.datatype.FrameworkElementInfo;
+import org.finroc.core.datatype.Timestamp;
 import org.finroc.core.port.AbstractPort;
 import org.finroc.core.port.PortCreationInfo;
 import org.finroc.core.port.PortFlags;
@@ -121,7 +122,10 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             @SharedPtr LargeIntermediateStreamBuffer lmBuf = new LargeIntermediateStreamBuffer(s.getSink());
             cos = new OutputStreamBuffer(lmBuf, updateTimes);
             //cos = new CoreOutputStream(new BufferedOutputStreamMod(s.getOutputStream()));
-            cos.writeLong(RuntimeEnvironment.getInstance().getCreationTime()); // write base timestamp
+            Timestamp ts = new Timestamp();
+            ts.set(RuntimeEnvironment.getInstance().getCreationTime());
+            ts.serialize(cos);
+            //TODO: cos.writeString(s)
             //RemoteTypes.serializeLocalDataTypes(cos);
             cos.writeType(CoreNumber.TYPE);
             cos.flush();

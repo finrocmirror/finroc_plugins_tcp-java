@@ -64,6 +64,7 @@ import org.finroc.core.admin.AdminClient;
 import org.finroc.core.admin.AdminServer;
 import org.finroc.core.datatype.CoreNumber;
 import org.finroc.core.datatype.FrameworkElementInfo;
+import org.finroc.core.datatype.Timestamp;
 import org.finroc.core.port.AbstractPort;
 import org.finroc.core.port.PortCreationInfo;
 import org.finroc.core.port.PortFlags;
@@ -793,7 +794,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             // initialize core streams
             cis = new InputStreamBuffer(socket_.getSource(), updateTimes);
             cis.setTimeout(1000);
-            timeBase = cis.readLong(); // Timestamp that remote runtime was created - and relative to which time is encoded in this stream
+            Timestamp ts = new Timestamp();
+            ts.deserialize(cis);
+            timeBase = ts.getInMs(); // Timestamp that remote runtime was created - and relative to which time is encoded in this stream
             //updateTimes.deserialize(cis);
             DataTypeBase dt = cis.readType();
             assert(dt == CoreNumber.TYPE);
