@@ -188,7 +188,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
             }
 
             // remove port & disconnect
-            ci.reset();
+            ci.reset(this, false);
             for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
                 if (fe == server || fe.isPort()) {
                     continue;
@@ -220,7 +220,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
 
             if (sameAddress) {
 
-                ci.reset();
+                ci.reset(this);
                 FrameworkElement fe = null;
                 while ((fe = ci.next()) != null) {
                     if (fe instanceof RemoteServer) {
@@ -280,7 +280,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
         }
         //tracker.delete();
 
-        ci.reset();
+        ci.reset(this);
         FrameworkElement fe = null;
         while ((fe = ci.next()) != null) {
             if (fe.isReady() && (fe instanceof RemoteServer)) {
