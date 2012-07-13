@@ -62,6 +62,7 @@ import org.finroc.core.port.ThreadLocalCache;
 import org.finroc.core.port.net.NetPort;
 import org.finroc.core.port.net.RemoteTypes;
 import org.finroc.core.port.net.UpdateTimeChangeListener;
+import org.finroc.core.port.rpc.AbstractCall;
 import org.finroc.core.port.rpc.MethodCall;
 import org.finroc.core.port.rpc.MethodCallException;
 import org.finroc.core.port.rpc.PullCall;
@@ -958,10 +959,12 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
                 return;
             }
 
-            mc.setExceptionStatus(MethodCallException.Type.NO_CONNECTION);
-            mc.setRemotePortHandle(remoteHandle);
-            mc.setLocalPortHandle(handle);
-            sendCall(mc);
+            if (mc.getStatus() == AbstractCall.Status.SYNCH_CALL) {
+                mc.setExceptionStatus(MethodCallException.Type.NO_CONNECTION);
+                mc.setRemotePortHandle(remoteHandle);
+                mc.setLocalPortHandle(handle);
+                sendCall(mc);
+            }
             cis.toSkipTarget();
         }
 
@@ -983,10 +986,12 @@ public abstract class TCPConnection extends LogUser implements UpdateTimeChangeL
             // process call
             log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Incoming Server Command: Method call " + (port != null ? port.getPort().getQualifiedName() : handle) + " " + mc.getMethod().getName());
             if (skipCall) {
-                mc.setExceptionStatus(MethodCallException.Type.NO_CONNECTION);
-                mc.setRemotePortHandle(remoteHandle);
-                mc.setLocalPortHandle(handle);
-                sendCall(mc);
+                if (mc.getStatus() == AbstractCall.Status.SYNCH_CALL) {
+                    mc.setExceptionStatus(MethodCallException.Type.NO_CONNECTION);
+                    mc.setRemotePortHandle(remoteHandle);
+                    mc.setLocalPortHandle(handle);
+                    sendCall(mc);
+                }
                 cis.toSkipTarget();
             } else {
                 NetPort.InterfaceNetPortImpl inp = (NetPort.InterfaceNetPortImpl)port.getPort();
