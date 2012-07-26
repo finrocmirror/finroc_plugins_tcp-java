@@ -429,11 +429,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             super.postChildInit();
 
             // add edge
-            if (getPort().isOutputPort()) {
-                getPort().connectToTarget(localPort);
-            } else {
-                getPort().connectToSource(localPort);
-            }
+            getPort().connectTo(localPort, getPort().isOutputPort() ? AbstractPort.ConnectDirection.TO_TARGET : AbstractPort.ConnectDirection.TO_SOURCE, false);
         }
 
         // notify any connected input ports about disconnect

@@ -817,7 +817,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 if (adminInterface != null) {
                     FrameworkElement fe = getChildElement(AdminServer.QUALIFIED_PORT_NAME, false);
                     if (fe != null && fe.isPort() && fe.isReady()) {
-                        ((AbstractPort)fe).connectToTarget(adminInterface.getWrapped());
+                        ((AbstractPort)fe).connectTo(adminInterface.getWrapped());
                     }
                 }
 
