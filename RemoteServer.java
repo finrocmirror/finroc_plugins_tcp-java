@@ -56,6 +56,7 @@ import org.rrlib.finroc_core_utils.serialization.Serialization;
 
 import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
+import org.finroc.core.FrameworkElementTags;
 import org.finroc.core.FrameworkElementTreeFilter;
 import org.finroc.core.LockOrderLevels;
 import org.finroc.core.RuntimeEnvironment;
@@ -544,6 +545,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 setFlag(CoreFlags.FINSTRUCTABLE_GROUP);
             }
             yetUnknown = false;
+            FrameworkElementTags.addTags(this, info.getTags());
         }
 
         @Override
@@ -660,6 +662,8 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                         getFrameworkElement(portInfo.getLink(0).parent, portInfo.getLink(0).extraFlags, true, 0).addChild(getPort());
                     }
                 }
+                FrameworkElementTags.addTags(getPort(), portInfo.getTags());
+
                 checkSubscription();
             }
         }
