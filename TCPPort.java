@@ -22,7 +22,6 @@
 package org.finroc.plugins.tcp;
 
 import org.rrlib.finroc_core_utils.jc.GarbageCollector;
-import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
 import org.finroc.core.RuntimeSettings;
 import org.finroc.core.port.PortCreationInfo;
 import org.finroc.core.port.PortFlags;
@@ -33,7 +32,7 @@ import org.finroc.core.port.rpc.SynchMethodCallLogic;
 import org.finroc.core.portdatabase.FinrocTypeInfo;
 
 /**
- * @author max
+ * @author Max Reichardt
  *
  * NetPort for TCP Connections
  */
@@ -43,7 +42,7 @@ public abstract class TCPPort extends NetPort {
      * Connection that TCP Port belongs to - has to be checked for null, before used -
      * is deleted deferred, so using it after checking (without waiting) is safe
      */
-    @Ptr protected TCPConnection connection;
+    protected TCPConnection connection;
 
     /** Is port currently monitored? */
     protected boolean monitored = false;
@@ -56,7 +55,7 @@ public abstract class TCPPort extends NetPort {
      * @param connection Connection that TCP Port belongs to
      */
 
-    public TCPPort(PortCreationInfo pci, @Ptr TCPConnection connection) {
+    public TCPPort(PortCreationInfo pci, TCPConnection connection) {
         super(pci, connection);
         this.connection = connection;
         assert(connection != null);

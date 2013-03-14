@@ -21,11 +21,6 @@
  */
 package org.finroc.plugins.tcp;
 
-import org.rrlib.finroc_core_utils.jc.annotation.CppInclude;
-import org.rrlib.finroc_core_utils.jc.annotation.CppUnused;
-import org.rrlib.finroc_core_utils.jc.annotation.InCpp;
-import org.rrlib.finroc_core_utils.jc.annotation.Managed;
-import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
 import org.rrlib.finroc_core_utils.jc.log.LogDefinitions;
 import org.rrlib.finroc_core_utils.jc.net.IOException;
 import org.rrlib.finroc_core_utils.jc.net.NetSocket;
@@ -38,14 +33,13 @@ import org.finroc.core.FrameworkElement;
 import org.finroc.core.LockOrderLevels;
 
 /**
- * @author max
+ * @author Max Reichardt
  *
  * TCP Server instance.
  *
  * Module to provide local ports to other robots using a P2P-TCP based
  * communication mechanism.
  */
-@CppInclude("TCPPeer.h")
 public class TCPServer extends FrameworkElement implements org.rrlib.finroc_core_utils.jc.net.TCPServer {
 
     /** Port Server runs on */
@@ -61,7 +55,6 @@ public class TCPServer extends FrameworkElement implements org.rrlib.finroc_core
     private final TCPPeer peer;
 
     /** Log domain for this class */
-    @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /**
@@ -110,8 +103,8 @@ public class TCPServer extends FrameworkElement implements org.rrlib.finroc_core
             return;
         }
         try {
-            @SuppressWarnings("unused") @CppUnused
-            @Ptr @Managed TCPServerConnection connection = new TCPServerConnection(s, firstByte, this, peer);
+            @SuppressWarnings("unused")
+            TCPServerConnection connection = new TCPServerConnection(s, firstByte, this, peer);
         } catch (Exception e) {
             log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
         }

@@ -26,18 +26,6 @@ import java.util.List;
 
 import org.rrlib.finroc_core_utils.jc.AtomicInt;
 import org.rrlib.finroc_core_utils.jc.Time;
-import org.rrlib.finroc_core_utils.jc.annotation.AtFront;
-import org.rrlib.finroc_core_utils.jc.annotation.Const;
-import org.rrlib.finroc_core_utils.jc.annotation.CppInclude;
-import org.rrlib.finroc_core_utils.jc.annotation.CppType;
-import org.rrlib.finroc_core_utils.jc.annotation.Friend;
-import org.rrlib.finroc_core_utils.jc.annotation.InCpp;
-import org.rrlib.finroc_core_utils.jc.annotation.JavaOnly;
-import org.rrlib.finroc_core_utils.jc.annotation.PassByValue;
-import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
-import org.rrlib.finroc_core_utils.jc.annotation.Ref;
-import org.rrlib.finroc_core_utils.jc.annotation.SharedPtr;
-import org.rrlib.finroc_core_utils.jc.annotation.SizeT;
 import org.rrlib.finroc_core_utils.jc.container.SimpleList;
 import org.rrlib.finroc_core_utils.jc.log.LogDefinitions;
 import org.rrlib.finroc_core_utils.jc.net.ConnectException;
@@ -77,7 +65,7 @@ import org.finroc.core.port.net.RemoteTypes;
 import org.finroc.core.thread.CoreLoopThreadBase;
 
 /**
- * @author max
+ * @author Max Reichardt
  *
  * Class that stores information about and can be used to access
  * TCP Server running in another runtime environment.
@@ -89,29 +77,28 @@ import org.finroc.core.thread.CoreLoopThreadBase;
  *  are using these ports. Therefore, critical port operations should be executed in synchronized context
  *  - as well as any deleting.
  */
-@CppInclude("rrlib/finroc_core_utils/GarbageCollector.h")
 public class RemoteServer extends FrameworkElement implements RuntimeListener, RemoteHandleLookup {
 
     /** Network address */
     private final IPSocketAddress address;
 
     /** Bulk and Express Connections to server */
-    private @SharedPtr Connection bulk, express;
+    private Connection bulk, express;
 
     /** This thread reconnects disconnected Remote Nodes and updates subscriptions */
-    private final @SharedPtr ConnectorThread connectorThread;
+    private final ConnectorThread connectorThread;
 
     /** Temporary buffer with port information */
-    private @PassByValue FrameworkElementInfo tmpInfo = new FrameworkElementInfo();
+    private FrameworkElementInfo tmpInfo = new FrameworkElementInfo();
 
     /** Filter that specifies which framework element we're interested in */
     private FrameworkElementTreeFilter filter;
 
     /** Lookup for remote framework elements (currently not ports) - similar to remote CoreRegister */
-    @PassByValue private final RemoteCoreRegister<ProxyPort> remotePortRegister = new RemoteCoreRegister<ProxyPort>();
+    private final RemoteCoreRegister<ProxyPort> remotePortRegister = new RemoteCoreRegister<ProxyPort>();
 
     /** Lookup for remote framework elements (currently not ports) - similar to remote CoreRegister */
-    @PassByValue private final RemoteCoreRegister<ProxyFrameworkElement> remoteElementRegister = new RemoteCoreRegister<ProxyFrameworkElement>();
+    private final RemoteCoreRegister<ProxyFrameworkElement> remoteElementRegister = new RemoteCoreRegister<ProxyFrameworkElement>();
 
     /** Iterator for port register (only used by reader thread) */
     private final RemoteCoreRegister<ProxyPort>.Iterator portIterator = remotePortRegister.getIterator();
@@ -138,23 +125,18 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
     private boolean deletedSoon = false;
 
     /** Administration interface client port */
-    @JavaOnly
     private final AdminClient adminInterface;
 
     /** String to display when connecting */
-    @CppType("const char*")
     private static final String CONNECTING = "connecting";
 
     /** String to display when disconnecting */
-    @CppType("const char*")
     private static final String DISCONNECTING = "disconnecting";
 
     /** Not null when currently connecting or disconnecting */
-    @InCpp("const char* volatile statusString;")
     private volatile String statusString = null;
 
     /** Log domain for this class */
-    @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /**
@@ -164,14 +146,13 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
      * @param filter Filter that specifies which framework element we're interested in
      * @param peer Peer that this server belongs to
      */
-    public RemoteServer(IPSocketAddress isa, String name, FrameworkElement parent, @Const @Ref FrameworkElementTreeFilter filter, TCPPeer peer) {
+    public RemoteServer(IPSocketAddress isa, String name, FrameworkElement parent, FrameworkElementTreeFilter filter, TCPPeer peer) {
         super(parent, name, CoreFlags.NETWORK_ELEMENT | CoreFlags.ALLOWS_CHILDREN | (filter.isPortOnlyFilter() ? 0 : CoreFlags.ALTERNATE_LINK_ROOT), LockOrderLevels.REMOTE); // manages ports itself
         this.filter = filter;
         this.peer = peer;
         globalLinks = filter.isPortOnlyFilter() ? new FrameworkElement(this, "global", CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT | CoreFlags.GLOBALLY_UNIQUE_LINK | CoreFlags.ALTERNATE_LINK_ROOT, -1) : null;
         address = isa;
 
-        //JavaOnlyBlock
         adminInterface = filter.isAcceptAllFilter() ? new AdminClient("AdminClient " + getName(), peer) : null;
         addAnnotation(new RemoteRuntime(adminInterface, null, this));
 
@@ -192,8 +173,8 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         }
 
         // try connecting...
-        @SharedPtr NetSocket socketExpress = NetSocket.createInstance(address);
-        @SharedPtr NetSocket socketBulk = NetSocket.createInstance(address);
+        NetSocket socketExpress = NetSocket.createInstance(address);
+        NetSocket socketBulk = NetSocket.createInstance(address);
 
         synchronized (this) {
             if (disconnectCalls.get() > 0) {
@@ -203,11 +184,8 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             }
 
             // connect
-            //Cpp finroc::util::GarbageCollector::Functor deleter;
-            @InCpp("std::shared_ptr<Connection> express(new Connection(this, _T_TCP::TCP_P2P_ID_EXPRESS), deleter);")
-            @SharedPtr Connection express = new Connection(TCP.TCP_P2P_ID_EXPRESS);
-            @InCpp("std::shared_ptr<Connection> bulk(new Connection(this, _T_TCP::TCP_P2P_ID_BULK), deleter);")
-            @SharedPtr Connection bulk = new Connection(TCP.TCP_P2P_ID_BULK);
+            Connection express = new Connection(TCP.TCP_P2P_ID_EXPRESS);
+            Connection bulk = new Connection(TCP.TCP_P2P_ID_BULK);
 
             // Set bulk and express here, because of other threads that might try to access them
             this.bulk = bulk;
@@ -238,7 +216,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
      * @param typeLookup Remote Type Database
      * @param Are we communicating with a new server?
      */
-    private void retrieveRemotePorts(@Ptr InputStreamBuffer cis, @Ptr OutputStreamBuffer cos, @Ptr RemoteTypes typeLookup, boolean newServer) {
+    private void retrieveRemotePorts(InputStreamBuffer cis, OutputStreamBuffer cos, RemoteTypes typeLookup, boolean newServer) {
 
         // recreate/reset monitoring lists if there has already been a connection
         portIterator.reset();
@@ -293,7 +271,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
      *
      * @param Framework element change information
      */
-    private void processPortUpdate(@Ref FrameworkElementInfo info) {
+    private void processPortUpdate(FrameworkElementInfo info) {
 
         logDomain.log(LogLevel.LL_DEBUG_VERBOSE_2, getLogDescription(), "Received updated FrameworkElementInfo: " + info.toString());
 
@@ -323,7 +301,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 if (port == null) { // normal case
                     port = new ProxyPort(info);
                 } else { // refound port
-                    //Cpp printf("refound network port %p %s\n", port, port->getPort()->getCName());
                     synchronized (port.getPort()) {
                         port.refound = true;
                         port.connection = (info.getFlags() & PortFlags.IS_EXPRESS_PORT) > 0 ? express : bulk;
@@ -343,7 +320,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                     //fe.yetUnknown = false;
                 } else if (fe != null) { // refound
                     synchronized (fe) {
-                        //Cpp printf("refound network framework element %p %s\n", fe, fe->getCName());
                         fe.refound = true;
                         assert(fe.matches(info)) : "Structure in server changed - that shouldn't happen";
                         info.opCode = RuntimeListener.CHANGE;
@@ -394,7 +370,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             log(LogLevel.LL_WARNING, logDomain, "warning: RemoteServer::prepareDelete() - Interrupted waiting for connector thread.");
         }
 
-        //JavaOnlyBlock
         if (adminInterface != null && adminInterface.isReady()) {
             adminInterface.delete();
         }
@@ -489,11 +464,10 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
     }
 
     /**
-     * @author max
+     * @author Max Reichardt
      *
      * Dummy framework element for clients which are interested in remote structure
      */
-    @Friend(RemoteServer.class)
     public class ProxyFrameworkElement extends FrameworkElement {
 
         /** Has port been found again after reconnect? */
@@ -513,7 +487,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             yetUnknown = true;
         }
 
-        public synchronized boolean matches(@Const @Ref FrameworkElementInfo info) {
+        public synchronized boolean matches(FrameworkElementInfo info) {
             if (remoteHandle != info.getHandle() || info.getLinkCount() != getLinkCount()) {
                 return false;
             }
@@ -531,7 +505,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
          *
          * @param info Information
          */
-        public synchronized void updateFromPortInfo(@Const @Ref FrameworkElementInfo info) {
+        public synchronized void updateFromPortInfo(FrameworkElementInfo info) {
             if (!isReady()) {
                 assert(info.opCode == RuntimeListener.ADD) : "only add operation may change framework element before initialization";
                 assert(info.getLinkCount() == 1) : "Framework elements currently may not be linked";
@@ -558,7 +532,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
     /**
      * Local port that acts as proxy for ports on remote machines
      */
-    @Friend(RemoteServer.class) @Ptr
     public class ProxyPort extends TCPPort {
 
         /** Has port been found again after reconnect? */
@@ -574,7 +547,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         private short subscriptionUpdateTime = -1;
 
         /** Handles (remote) of port's outgoing connections */
-        @JavaOnly
         protected SimpleList<FrameworkElementInfo.ConnectionInfo> connections = new SimpleList<FrameworkElementInfo.ConnectionInfo>();
 
         /**
@@ -583,7 +555,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
          * @param info Port information
          * @return Answer
          */
-        public boolean matches(@Const @Ref FrameworkElementInfo info) {
+        public boolean matches(FrameworkElementInfo info) {
             synchronized (getPort()) {
                 if (remoteHandle != info.getHandle() || info.getLinkCount() != getPort().getLinkCount()) {
                     return false;
@@ -591,7 +563,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 if ((getPort().getAllFlags() & CoreFlags.CONSTANT_FLAGS) != (info.getFlags() & CoreFlags.CONSTANT_FLAGS)) {
                     return false;
                 }
-                for (@SizeT int i = 0; i < info.getLinkCount(); i++) {
+                for (int i = 0; i < info.getLinkCount(); i++) {
                     if (filter.isPortOnlyFilter()) {
                         getPort().getQualifiedLink(tmpMatchBuffer, i);
                     } else {
@@ -620,7 +592,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         /**
          * @param portInfo Port information
          */
-        public ProxyPort(@Const @Ref FrameworkElementInfo portInfo) {
+        public ProxyPort(FrameworkElementInfo portInfo) {
             super(createPCI(portInfo), (portInfo.getFlags() & PortFlags.IS_EXPRESS_PORT) > 0 ? express : bulk);
             remoteHandle = portInfo.getHandle();
             remotePortRegister.put(remoteHandle, this);
@@ -632,7 +604,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
          *
          * @param portInfo Port info
          */
-        private void updateFromPortInfo(@Const @Ref FrameworkElementInfo portInfo) {
+        private void updateFromPortInfo(FrameworkElementInfo portInfo) {
             synchronized (getPort().getRegistryLock()) {
                 updateFlags(portInfo.getFlags());
                 getPort().setMinNetUpdateInterval(portInfo.getMinNetUpdateInterval());
@@ -654,7 +626,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                         getPort().setName(portInfo.getLink(0).name);
                         parent.addChild(getPort());
                     } else {
-                        for (@SizeT int i = 1; i < portInfo.getLinkCount(); i++) {
+                        for (int i = 1; i < portInfo.getLinkCount(); i++) {
                             FrameworkElement parent = getFrameworkElement(portInfo.getLink(i).parent, portInfo.getLink(i).extraFlags, true, 0);
                             getPort().link(parent, portInfo.getLink(i).name);
                         }
@@ -702,7 +674,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                     strategy = -1;
                 }
 
-                @Ptr Connection c = (Connection)connection;
+                Connection c = (Connection)connection;
 
                 if (c == null) {
                     subscriptionStrategy = -1;
@@ -724,7 +696,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             }
         }
 
-        @Override @JavaOnly
+        @Override
         public List<AbstractPort> getRemoteEdgeDestinations() {
             ArrayList<AbstractPort> result = new ArrayList<AbstractPort>();
             for (int i = 0; i < connections.size(); i++) {
@@ -746,7 +718,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
      * @param portInfo Port Information
      * @return Port Creation info
      */
-    private static PortCreationInfo createPCI(@Const @Ref FrameworkElementInfo portInfo) {
+    private static PortCreationInfo createPCI(FrameworkElementInfo portInfo) {
         PortCreationInfo pci = new PortCreationInfo(portInfo.getFlags());
         pci.flags = portInfo.getFlags();
 
@@ -766,7 +738,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
      * represents a single I/O TCP Connection with
      * own socket.
      */
-    @Friend(RemoteServer.class)
     public class Connection extends TCPConnection {
 
         /** Command buffer for subscriptions etc. */
@@ -781,11 +752,11 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             super(type, type == TCP.TCP_P2P_ID_BULK ? RemoteServer.this.peer : null, type == TCP.TCP_P2P_ID_BULK);
         }
 
-        public void connect(NetSocket socket_, @SharedPtr @Ref Connection connection) throws ConnectException, IOException {
+        public void connect(NetSocket socket_, Connection connection) throws ConnectException, IOException {
             super.socket = socket_;
 
             // write stream id
-            @SharedPtr LargeIntermediateStreamBuffer lmBuf = new LargeIntermediateStreamBuffer(socket_.getSink());
+            LargeIntermediateStreamBuffer lmBuf = new LargeIntermediateStreamBuffer(socket_.getSink());
             cos = new OutputStreamBuffer(lmBuf, updateTimes);
             cos.writeByte(type);
             //RemoteTypes.serializeLocalDataTypes(cos);
@@ -806,9 +777,9 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
             assert(dt == CoreNumber.TYPE);
             cis.setTimeout(-1);
 
-            @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Client " + typeString + "-Listener for " + getName()));
+            Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Client " + typeString + "-Listener for " + getName()));
             super.reader = listener;
-            @SharedPtr Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Client " + typeString + "-Writer for " + getName()));
+            Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Client " + typeString + "-Writer for " + getName()));
             super.writer = writer;
 
             if (bulk) {
@@ -816,7 +787,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                 log(LogLevel.LL_DEBUG, logDomain, (newServer ? "Connecting" : "Reconnecting") + " to server " + socket_.getRemoteSocketAddress().toString() + "...");
                 retrieveRemotePorts(cis, cos, updateTimes, newServer);
 
-                //JavaOnlyBlock
                 // connect to admin interface?
                 if (adminInterface != null) {
                     FrameworkElement fe = getChildElement(AdminServer.QUALIFIED_PORT_NAME, false);
@@ -825,7 +795,6 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
                     }
                 }
 
-                //JavaOnlyBlock
                 // set remote type in RemoteRuntime Annotation
                 ((RemoteRuntime)getAnnotation(RemoteRuntime.class)).setRemoteTypes(updateTimes);
             }
@@ -963,14 +932,13 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
     /**
      * This thread reconnects if connection was interrupted and updates subscriptions.
      */
-    @AtFront @Friend(RemoteServer.class)
     private class ConnectorThread extends CoreLoopThreadBase {
 
         /** Timestamp of last subscription update */
         private long lastSubscriptionUpdate = 0;
 
         /** Bulk and Express Connections to server - copy for connector thread */
-        private @SharedPtr Connection ctBulk, ctExpress;
+        private Connection ctBulk, ctExpress;
 
         public ConnectorThread() {
             super(TCPSettings.CONNECTOR_THREAD_LOOP_INTERVAL, false, false);
@@ -1168,7 +1136,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         return deletedSoon;
     }
 
-    @Override @JavaOnly
+    @Override
     public Integer getRemoteHandle(FrameworkElement element) {
         if (element == this) {
             return RuntimeEnvironment.getInstance().getHandle();
@@ -1185,7 +1153,7 @@ public class RemoteServer extends FrameworkElement implements RuntimeListener, R
         return null;
     }
 
-    @Override @JavaOnly
+    @Override
     public FrameworkElement getRemoteElement(int handle) {
         if (!isReady()) {
             return null;

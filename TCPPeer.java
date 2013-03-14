@@ -22,11 +22,6 @@
 package org.finroc.plugins.tcp;
 
 import org.rrlib.finroc_core_utils.jc.ArrayWrapper;
-import org.rrlib.finroc_core_utils.jc.annotation.InCpp;
-import org.rrlib.finroc_core_utils.jc.annotation.InCppFile;
-import org.rrlib.finroc_core_utils.jc.annotation.IncludeClass;
-import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
-import org.rrlib.finroc_core_utils.jc.annotation.SizeT;
 import org.rrlib.finroc_core_utils.jc.container.SafeConcurrentlyIterableList;
 import org.rrlib.finroc_core_utils.jc.container.SimpleList;
 import org.rrlib.finroc_core_utils.jc.log.LogDefinitions;
@@ -40,7 +35,7 @@ import org.finroc.core.plugin.ExternalConnection;
 import org.finroc.core.port.net.AbstractPeerTracker;
 
 /**
- * @author max
+ * @author Max Reichardt
  *
  * A TCP Peer contains a TCP Client and a TCP Server.
  * It is a single peer in a Peer2Peer network.
@@ -49,7 +44,6 @@ import org.finroc.core.port.net.AbstractPeerTracker;
  * TODO: improve this (client and server should use the same TCPConnections
  * to communicate with another peer).
  */
-@IncludeClass(TCPConnection.class)
 public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.Listener {
 
     /** Modes for TCP Peer */
@@ -88,7 +82,6 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     public SafeConcurrentlyIterableList<TCPConnection> connections = new SafeConcurrentlyIterableList<TCPConnection>(10, 4);
 
     /** Log domain for this class */
-    @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /**
@@ -205,7 +198,6 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
     }
 
     @Override
-    @InCppFile
     public void nodeRemovedPostLockProcess(Object obj) {
         ((RemoteServer)obj).managedDelete();
     }
@@ -243,7 +235,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
                     String port = address.substring(idx + 1);
 
                     ip = true;
-                    for (@SizeT int i = 0; i < port.length(); i++) {
+                    for (int i = 0; i < port.length(); i++) {
                         if (!Character.isDigit(port.charAt(i))) {
                             ip = false;
                         }
@@ -319,7 +311,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
      *  Notifies writers of all active connections connected to this peer
      */
     public void notifyAllWriters() {
-        @Ptr ArrayWrapper<TCPConnection> it = connections.getIterable();
+        ArrayWrapper<TCPConnection> it = connections.getIterable();
         for (int i = 0, n = it.size(); i < n; i++) {
             TCPConnection tc = it.get(i);
             if (tc != null) {
@@ -367,7 +359,7 @@ public class TCPPeer extends ExternalConnection implements AbstractPeerTracker.L
                     addStuff.add(rs.getPartnerAddress().toString() + " " + rs.getPingString());
                 }
             }
-            for (@SizeT int i = 0; i < addStuff.size(); i++) {
+            for (int i = 0; i < addStuff.size(); i++) {
                 s += (i == 0) ? " (" : "; ";
                 s += addStuff.get(i);
             }

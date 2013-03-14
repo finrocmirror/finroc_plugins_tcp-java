@@ -28,7 +28,7 @@ import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
 import org.rrlib.finroc_core_utils.serialization.Serialization;
 
 /**
- * @author max
+ * @author Max Reichardt
  *
  * A single asynchronous TCP command such as: SUBSCRIBE or UNSUBSCRIBE
  */

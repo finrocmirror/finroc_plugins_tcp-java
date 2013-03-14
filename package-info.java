@@ -20,13 +20,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-@Namespace("finroc::tcp")
-@CppLocation("plugins/tcp")
-
 /**
  * These classes implement the default TCP-based network mechanism.
  */
 package org.finroc.plugins.tcp;
-
-import org.rrlib.finroc_core_utils.jc.annotation.CppLocation;
-import org.rrlib.finroc_core_utils.jc.annotation.Namespace;

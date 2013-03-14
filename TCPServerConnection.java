@@ -29,12 +29,6 @@ import org.rrlib.finroc_core_utils.jc.AtomicInt;
 import org.rrlib.finroc_core_utils.jc.AutoDeleter;
 import org.rrlib.finroc_core_utils.jc.MutexLockOrder;
 import org.rrlib.finroc_core_utils.jc.Time;
-import org.rrlib.finroc_core_utils.jc.annotation.CppInclude;
-import org.rrlib.finroc_core_utils.jc.annotation.Friend;
-import org.rrlib.finroc_core_utils.jc.annotation.JavaOnly;
-import org.rrlib.finroc_core_utils.jc.annotation.PassByValue;
-import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
-import org.rrlib.finroc_core_utils.jc.annotation.SharedPtr;
 import org.rrlib.finroc_core_utils.jc.container.SafeConcurrentlyIterableList;
 import org.rrlib.finroc_core_utils.jc.net.NetSocket;
 import org.rrlib.finroc_core_utils.jc.stream.ChunkedBuffer;
@@ -62,7 +56,7 @@ import org.finroc.core.portdatabase.FinrocTypeInfo;
 import org.finroc.core.thread.CoreLoopThreadBase;
 
 /**
- * @author max
+ * @author Max Reichardt
  *
  * Single connection to TCP Server
  *
@@ -71,11 +65,10 @@ import org.finroc.core.thread.CoreLoopThreadBase;
  *
  * Thread-safety: Reader thread is the only one that deletes ports while operating. So it can use them without lock.
  */
-@CppInclude("tcp/TCPServer.h")
 public final class TCPServerConnection extends TCPConnection implements RuntimeListener, FrameworkElementTreeFilter.Callback<Boolean> {
 
     /** List with connections for TCP servers in this runtime */
-    static final @Ptr SafeConcurrentlyIterableList<TCPServerConnection> connections = AutoDeleter.addStatic(new SafeConcurrentlyIterableList<TCPServerConnection>(4, 4));
+    static final SafeConcurrentlyIterableList<TCPServerConnection> connections = AutoDeleter.addStatic(new SafeConcurrentlyIterableList<TCPServerConnection>(4, 4));
 
     /** Used for creating connection IDs */
     private static final AtomicInt connectionId = new AtomicInt();
@@ -90,13 +83,13 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
      * Buffer for storing serialized updated runtime information - ready to be sent -
      * (efficient & completely non-blocking solution :-) )
      */
-    @PassByValue private ChunkedBuffer runtimeInfoBuffer = new ChunkedBuffer(false);
+    private ChunkedBuffer runtimeInfoBuffer = new ChunkedBuffer(false);
 
     /** For any thread that writes runtime changes - note that when declared in this order, writer will be deleted/closed before runtimeInfoBuffer (that's intended and the correct order) */
-    @PassByValue private OutputStreamBuffer runtimeInfoWriter = new OutputStreamBuffer(runtimeInfoBuffer);
+    private OutputStreamBuffer runtimeInfoWriter = new OutputStreamBuffer(runtimeInfoBuffer);
 
     /** For network writer thread that forwards runtime change information */
-    @PassByValue private InputStreamBuffer runtimeInfoReader = new InputStreamBuffer(runtimeInfoBuffer.getDestructiveSource());
+    private InputStreamBuffer runtimeInfoReader = new InputStreamBuffer(runtimeInfoBuffer.getDestructiveSource());
 
     /** Framework element filter to decide which data is interesting for client */
     private FrameworkElementTreeFilter elementFilter = new FrameworkElementTreeFilter();
@@ -119,7 +112,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
         synchronized (this) {
 
             // initialize core streams (counter part to RemoteServer.Connection constructor)
-            @SharedPtr LargeIntermediateStreamBuffer lmBuf = new LargeIntermediateStreamBuffer(s.getSink());
+            LargeIntermediateStreamBuffer lmBuf = new LargeIntermediateStreamBuffer(s.getSink());
             cos = new OutputStreamBuffer(lmBuf, updateTimes);
             //cos = new CoreOutputStream(new BufferedOutputStreamMod(s.getOutputStream()));
             Timestamp ts = new Timestamp();
@@ -150,11 +143,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
                     sendRuntimeInfo = true;
                     synchronized (RuntimeEnvironment.getInstance().getRegistryLock()) { // lock runtime so that we do not miss a change
                         RuntimeEnvironment.getInstance().addListener(this);
-
-                        //JavaOnlyBlock
                         elementFilter.traverseElementTree(RuntimeEnvironment.getInstance(), this, null, tmp);
-
-                        //Cpp elementFilter.traverseElementTree(core::RuntimeEnvironment::getInstance(), this, false, tmp);
                     }
                     cos.writeByte(0); // terminator
                     cos.flush();
@@ -162,13 +151,13 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
                 cis.setTimeout(0);
 
                 // start incoming data listener thread
-                @SharedPtr Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Server " + typeString + "-Listener for " + s.getRemoteSocketAddress().toString()));
+                Reader listener = ThreadUtil.getThreadSharedPtr(new Reader("TCP Server " + typeString + "-Listener for " + s.getRemoteSocketAddress().toString()));
                 super.reader = listener;
                 listener.lockObject(portSet.connectionLock);
                 listener.start();
 
                 // start writer thread
-                @SharedPtr Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Server " + typeString + "-Writer for " + s.getRemoteSocketAddress().toString()));
+                Writer writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Server " + typeString + "-Writer for " + s.getRemoteSocketAddress().toString()));
                 super.writer = writer;
                 writer.lockObject(portSet.connectionLock);
                 writer.start();
@@ -350,7 +339,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             if (updateTimes.typeUpdateNecessary()) {
 
                 // use update time tcp command to trigger type update
-                @PassByValue TCPCommand tc = new TCPCommand();
+                TCPCommand tc = new TCPCommand();
                 tc.opCode = TCP.OpCode.UPDATE_TIME;
                 tc.datatype = CoreNumber.TYPE;
                 tc.updateInterval = FinrocTypeInfo.get(CoreNumber.TYPE).getUpdateTime();
@@ -367,16 +356,15 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     /**
      * PortSet representation of this Connection (so temporary ports are grouped and can conveniently be deleted)
      */
-    @Friend(TCPServerConnection.class)
     public class PortSet extends FrameworkElement {
 
         /** For iterating over portSet's ports */
         private final ChildIterator portIterator;
 
         /** Ensures that connection object exists as long as port set does */
-        private final @SharedPtr TCPServerConnection connectionLock;
+        private final TCPServerConnection connectionLock;
 
-        public PortSet(TCPServer server, @PassByValue @SharedPtr TCPServerConnection connectionLock) {
+        public PortSet(TCPServer server, TCPServerConnection connectionLock) {
             super(server, "connection" + connectionId.getAndIncrement(), CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT, LockOrderLevels.PORT - 1); // manages ports itself
             portIterator = new ChildIterator(this);
             this.connectionLock = connectionLock;
@@ -408,7 +396,6 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     /**
      * Local Port that is created for subscriptions and incoming connections.
      */
-    @Friend(TCPServerConnection.class)
     public class ServerPort extends TCPPort {
 
         /** Local partner port */
@@ -445,7 +432,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             // data is propagated automatically with port strategy changed in framework element class
         }
 
-        @Override @JavaOnly
+        @Override
         public List<AbstractPort> getRemoteEdgeDestinations() {
             log(LogLevel.LL_DEBUG_WARNING, logDomain, "remote server ports have no info on remote edges");
             return new ArrayList<AbstractPort>();
@@ -481,10 +468,9 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
     /**
      * Monitors connections for critical ping time exceed
      */
-    @Friend(TCPServerConnection.class) @Ptr
     public static class PingTimeMonitor extends CoreLoopThreadBase {
 
-        @SharedPtr private static PingTimeMonitor instance;
+        private static PingTimeMonitor instance;
 
         /** Locked before thread list (in C++) */
         @SuppressWarnings("unused")
@@ -510,7 +496,7 @@ public final class TCPServerConnection extends TCPConnection implements RuntimeL
             long startTime = Time.getCoarse();
             long mayWait = TCPSettings.getInstance().criticalPingThreshold.getValue();
 
-            @Ptr ArrayWrapper<TCPServerConnection> it = connections.getIterable();
+            ArrayWrapper<TCPServerConnection> it = connections.getIterable();
             for (int i = 0, n = connections.size(); i < n; i++) {
                 TCPServerConnection tsc = it.get(i);
                 if (tsc != null) {

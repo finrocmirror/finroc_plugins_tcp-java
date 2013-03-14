@@ -21,10 +21,6 @@
  */
 package org.finroc.plugins.tcp;
 
-import org.rrlib.finroc_core_utils.jc.annotation.Const;
-import org.rrlib.finroc_core_utils.jc.annotation.CppType;
-import org.rrlib.finroc_core_utils.jc.annotation.Include;
-import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.RuntimeSettings;
 import org.finroc.core.datatype.Bounds;
@@ -33,11 +29,10 @@ import org.finroc.core.datatype.Unit;
 import org.finroc.core.parameter.ParameterNumeric;
 
 /**
- * @author max
+ * @author Max Reichardt
  *
  * TCP Settings
  */
-@Include("core/parameter/Parameter.h")
 public class TCPSettings extends FrameworkElement {
 
     /** Singleton Instance */
@@ -65,26 +60,21 @@ public class TCPSettings extends FrameworkElement {
     static final boolean DEBUG_TCP = true;
 
     /** Help for debugging: this number will be inserted after every command when DEBUG_TCP is activated */
-    @Const static final int DEBUG_TCP_NUMBER = 0xCAFEBABE;
+    static final int DEBUG_TCP_NUMBER = 0xCAFEBABE;
 
     // Port settings
-    @CppType("core::Parameter<int>")
     final ParameterNumeric<Integer> maxNotAcknowledgedPacketsExpress =
         new ParameterNumeric<Integer>("Maximum not acknowledged express packets", this, 4, new Bounds<Integer>(1, 40, true));
 
-    @CppType("core::Parameter<int>")
     final ParameterNumeric<Integer> maxNotAcknowledgedPacketsBulk =
         new ParameterNumeric<Integer>("Maximum not acknowledged bulk packets", this, 2, new Bounds<Integer>(1, 40, true));
 
-    @CppType("core::Parameter<int>")
     final ParameterNumeric<Integer> minUpdateIntervalExpress =
         new ParameterNumeric<Integer>("Minimum Express Update Interval", this, 25, new Bounds<Integer>(1, 2000, Constant.NO_MIN_TIME_LIMIT.getValue()), Unit.ms);
 
-    @CppType("core::Parameter<int>")
     final ParameterNumeric<Integer> minUpdateIntervalBulk =
         new ParameterNumeric<Integer>("Minimum Bulk Update Interval", this, 50, new Bounds<Integer>(1, 2000, Constant.NO_MIN_TIME_LIMIT.getValue()), Unit.ms);
 
-    @CppType("core::Parameter<int>")
     final ParameterNumeric<Integer> criticalPingThreshold =
         new ParameterNumeric<Integer>("Critical Ping Threshold", this, 1500, new Bounds<Integer>(50, 20000, Constant.NO_MAX_TIME_LIMIT.getValue()), Unit.ms);
 
@@ -100,7 +90,7 @@ public class TCPSettings extends FrameworkElement {
         getInstance().init();
     }
 
-    public static @Ptr TCPSettings getInstance() {
+    public static TCPSettings getInstance() {
         if (inst == null) {
             inst = new TCPSettings();
         }

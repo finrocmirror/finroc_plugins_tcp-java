@@ -31,19 +31,13 @@ import org.finroc.core.plugin.Plugin;
 import org.finroc.core.plugin.Plugins;
 import org.rrlib.finroc_core_utils.jc.AutoDeleter;
 import org.rrlib.finroc_core_utils.jc.HasDestructor;
-import org.rrlib.finroc_core_utils.jc.annotation.AtFront;
-import org.rrlib.finroc_core_utils.jc.annotation.ForwardDecl;
-import org.rrlib.finroc_core_utils.jc.annotation.InCppFile;
-import org.rrlib.finroc_core_utils.jc.annotation.PassByValue;
-import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
 import org.rrlib.finroc_core_utils.jc.container.ReusablesPoolCR;
 
 /**
- * @author max
+ * @author Max Reichardt
  *
  * Plugin for P2P TCP connections
  */
-@ForwardDecl(TCPPeer.class)
 public class TCP implements Plugin, HasDestructor {
 
     /** Singleton instance of TCP plugin */
@@ -92,7 +86,7 @@ public class TCP implements Plugin, HasDestructor {
     public static final String DEFAULT_CONNECTION_NAME = "localhost:4444";
 
     /** Pool with Reusable TCP Commands (SUBSCRIBE & UNSUBSCRIBE) */
-    @Ptr private static final ReusablesPoolCR<TCPCommand> tcpCommands = AutoDeleter.addStatic(new ReusablesPoolCR<TCPCommand>());
+    private static final ReusablesPoolCR<TCPCommand> tcpCommands = AutoDeleter.addStatic(new ReusablesPoolCR<TCPCommand>());
 
     /** Name of ports only connection */
     public static final String TCP_PORTS_ONLY_NAME = "TCP ports only";
@@ -136,7 +130,6 @@ public class TCP implements Plugin, HasDestructor {
     /**
      * Class for TCP create-Actions
      */
-    @AtFront @PassByValue
     private static class CreateAction implements CreateExternalConnectionAction {
 
         /** Filter to used for this connection type */
@@ -156,16 +149,8 @@ public class TCP implements Plugin, HasDestructor {
             this.name = name;
             this.flags = flags;
             Plugins.getInstance().registerExternalConnection(this);
-
-            //Cpp group = getBinary((void*)_M_dummy);
-
-            //JavaOnlyBlock
             this.group = Plugins.getInstance().getContainingJarFile(TCP.class);
         }
-
-        /*Cpp
-        static void dummy() {}
-         */
 
         @Override
         public FrameworkElement createModule(FrameworkElement parent, String name, ConstructorParameters params) throws Exception {
@@ -189,7 +174,7 @@ public class TCP implements Plugin, HasDestructor {
             return name;
         }
 
-        @Override @InCppFile
+        @Override
         public ExternalConnection createExternalConnection() throws Exception {
             return new TCPPeer(DEFAULT_CONNECTION_NAME, filter);
         }

@@ -21,10 +21,6 @@
  */
 package org.finroc.plugins.tcp;
 
-import org.rrlib.finroc_core_utils.jc.annotation.Elems;
-import org.rrlib.finroc_core_utils.jc.annotation.InCpp;
-import org.rrlib.finroc_core_utils.jc.annotation.Ptr;
-import org.rrlib.finroc_core_utils.jc.annotation.SizeT;
 import org.rrlib.finroc_core_utils.jc.container.SimpleList;
 import org.rrlib.finroc_core_utils.jc.log.LogDefinitions;
 import org.rrlib.finroc_core_utils.jc.net.IPAddress;
@@ -38,7 +34,7 @@ import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.port.net.AbstractPeerTracker;
 
 /**
- * @author max
+ * @author Max Reichardt
  *
  * List of network peers that can be connected to.
  * Depends on external inputs.
@@ -58,7 +54,6 @@ public class PeerList extends AbstractPeerTracker {
     private final int serverPort;
 
     /** Log domain for this class */
-    @InCpp("_RRLIB_LOG_CREATE_NAMED_DOMAIN(logDomain, \"tcp\");")
     public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /** @param serverPort Server port of own peer */
@@ -103,21 +98,16 @@ public class PeerList extends AbstractPeerTracker {
         SimpleList<AbstractPeerTracker.Listener> listenersCopy = new SimpleList<AbstractPeerTracker.Listener>();
         listeners.getListenersCopy(listenersCopy);
         SimpleList<AbstractPeerTracker.Listener> postProcess = new SimpleList<AbstractPeerTracker.Listener>();
-        @Elems(Ptr.class)
         SimpleList<Object> postProcessObj = new SimpleList<Object>();
         synchronized (RuntimeEnvironment.getInstance().getRegistryLock()) {
             synchronized (this) {
                 if (peers.contains(isa)) {
                     peers.removeElem(isa);
-                    for (@SizeT int i = 0, n = listenersCopy.size(); i < n; i++) {
-                        @Ptr Object o = listenersCopy.get(i).nodeRemoved(isa, isa.toString());
+                    for (int i = 0, n = listenersCopy.size(); i < n; i++) {
+                        Object o = listenersCopy.get(i).nodeRemoved(isa, isa.toString());
                         if (o != null) {
                             postProcess.add(listenersCopy.get(i));
-
-                            //JavaOnlyBlock
                             postProcessObj.add(o);
-
-                            //Cpp postProcessObj.add(o);
                         }
                     }
                     revision++;
@@ -125,12 +115,8 @@ public class PeerList extends AbstractPeerTracker {
             }
         }
 
-        for (@SizeT int i = 0, n = postProcess.size(); i < n; i++) {
-
-            //JavaOnlyBlock
+        for (int i = 0, n = postProcess.size(); i < n; i++) {
             postProcess.get(i).nodeRemovedPostLockProcess(postProcessObj.get(i));
-
-            //Cpp postProcess.get(i)->nodeRemovedPostLockProcess(postProcessObj.get(i));
         }
     }
 
