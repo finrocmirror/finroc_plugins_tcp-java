@@ -19,18 +19,20 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package org.finroc.plugins.tcp;
+package org.finroc.plugins.tcp.internal;
+
+import java.io.IOException;
+import java.net.Socket;
 
 import org.rrlib.finroc_core_utils.jc.log.LogDefinitions;
-import org.rrlib.finroc_core_utils.jc.net.IOException;
-import org.rrlib.finroc_core_utils.jc.net.NetSocket;
 import org.rrlib.finroc_core_utils.jc.net.TCPConnectionHandler;
 import org.rrlib.finroc_core_utils.log.LogDomain;
 import org.rrlib.finroc_core_utils.log.LogLevel;
 
-import org.finroc.core.CoreFlags;
 import org.finroc.core.FrameworkElement;
+import org.finroc.core.FrameworkElementFlags;
 import org.finroc.core.LockOrderLevels;
+import org.finroc.plugins.tcp.TCPSettings;
 
 /**
  * @author Max Reichardt
@@ -40,7 +42,7 @@ import org.finroc.core.LockOrderLevels;
  * Module to provide local ports to other robots using a P2P-TCP based
  * communication mechanism.
  */
-public class TCPServer extends FrameworkElement implements org.rrlib.finroc_core_utils.jc.net.TCPServer {
+class TCPServer extends FrameworkElement implements org.rrlib.finroc_core_utils.jc.net.TCPServer {
 
     /** Port Server runs on */
     private int port;
@@ -61,10 +63,11 @@ public class TCPServer extends FrameworkElement implements org.rrlib.finroc_core
      * @param port Port Server runs on
      * @param tryNextPortsIfOccupied Try the following ports, if specified port is already occupied?
      * @param peer Peer that this server belongs to
+     * @param serverListenAddress The address that server is supposed to listen on ("" will enable IPv6)
      */
-    public TCPServer(int port, boolean tryNextPortsIfOccupied, TCPPeer peer) {
+    public TCPServer(int port, boolean tryNextPortsIfOccupied, TCPPeer peer, String serverListenAddress) {
         //super("tcpserver_" + name + "_" + networkName);
-        super(peer, "TCP Server", CoreFlags.ALLOWS_CHILDREN | CoreFlags.NETWORK_ELEMENT, LockOrderLevels.LEAF_GROUP);
+        super(peer.connectionElement, "TCP Server", FrameworkElementFlags.NETWORK_ELEMENT, LockOrderLevels.LEAF_GROUP);
         this.peer = peer;
         TCPSettings.initInstance();
         this.port = port;
@@ -93,7 +96,7 @@ public class TCPServer extends FrameworkElement implements org.rrlib.finroc_core
     }
 
     @Override
-    public synchronized void acceptConnection(NetSocket s, byte firstByte) {
+    public synchronized void acceptConnection(Socket s, byte firstByte) {
         if (isDeleted()) {
             try {
                 s.close();
@@ -103,8 +106,8 @@ public class TCPServer extends FrameworkElement implements org.rrlib.finroc_core
             return;
         }
         try {
-            @SuppressWarnings("unused")
-            TCPServerConnection connection = new TCPServerConnection(s, firstByte, this, peer);
+            //@SuppressWarnings("unused")
+            //TCPServerConnection connection = new TCPServerConnection(s, firstByte, this, peer); // TODO
         } catch (Exception e) {
             log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
         }
