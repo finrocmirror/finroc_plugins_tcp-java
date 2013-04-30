@@ -194,7 +194,7 @@ abstract class TCPPort extends NetPort {
     @Override
     public void propagateStrategyFromTheNet(short strategy) {
         super.propagateStrategyFromTheNet(strategy);
-        setMonitored(publishPortDataOverTheNet());
+        setMonitored(publishPortDataOverTheNet() && getPort().isConnected());
     }
 
     /**

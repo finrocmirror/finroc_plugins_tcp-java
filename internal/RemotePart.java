@@ -1028,6 +1028,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
                     subscriptionRevPush = revPush;
                     subscriptionUpdateTime = time;
                 }
+                setMonitored(publishPortDataOverTheNet() && getPort().isConnected());
             }
         }
 
