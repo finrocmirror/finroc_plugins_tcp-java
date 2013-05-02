@@ -87,7 +87,7 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
     private final OutputStream socketOutputStream;
 
     /** Buffer for writing data to stream */
-    private final MemoryBuffer writeBuffer = new MemoryBuffer();
+    private final MemoryBuffer writeBuffer = new MemoryBuffer(MemoryBuffer.DEFAULT_SIZE, MemoryBuffer.DEFAULT_RESIZE_FACTOR, false);
 
     /** Output Stream for sending data to remote Server */
     private final OutputStreamBuffer writeBufferStream = new OutputStreamBuffer(writeBuffer, remoteTypes);
