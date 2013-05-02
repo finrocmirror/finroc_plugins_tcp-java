@@ -683,7 +683,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
                     if (connections) {
                         info.deserializeConnections(stream);
                     }
-                    port.update(flags, strategy, updateInterval, connections ? info.getConnections() : null);
+                    port.update(flags, strategy, updateInterval, connections ? info.copyConnections() : null);
 
                     RemotePort[] modelElements = RemotePort.get(port.getPort());
                     for (RemotePort modelElement : modelElements) {
@@ -871,7 +871,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             getPort().setMinNetUpdateInterval(portInfo.getMinNetUpdateInterval());
             updateIntervalPartner = portInfo.getMinNetUpdateInterval(); // TODO redundant?
             propagateStrategyFromTheNet(portInfo.getStrategy());
-            connections.addAll(portInfo.getConnections());
+            connections = portInfo.copyConnections();
 
             log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Updating port info: " + portInfo.toString());
             for (int i = 1, n = portInfo.getLinkCount(); i < n; i++) {
@@ -890,14 +890,14 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             }
         }
 
-        public void update(int flags, short strategy, short minNetUpdateInterval, List<FrameworkElementInfo.ConnectionInfo> newConnections) {
+        public void update(int flags, short strategy, short minNetUpdateInterval, ArrayList<FrameworkElementInfo.ConnectionInfo> newConnections) {
             updateFlags(flags);
             getPort().setMinNetUpdateInterval(minNetUpdateInterval);
             updateIntervalPartner = minNetUpdateInterval; // TODO redundant?
             propagateStrategyFromTheNet(strategy);
             connections.clear();
             if (newConnections != null) {
-                connections.addAll(newConnections);
+                connections = newConnections;
             }
         }
 
