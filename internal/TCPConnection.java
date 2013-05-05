@@ -1121,7 +1121,7 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
     @Override
     public void updateTimeChanged(DataTypeBase dt, short newUpdateTime) {
         // forward update time change to connection partner
-        SerializedTCPCommand command = new SerializedTCPCommand(TCP.OpCode.UPDATE_TIME, 8);
+        SerializedTCPCommand command = new SerializedTCPCommand(TCP.OpCode.TYPE_UPDATE, 8);
         command.getWriteStream().writeShort(dt == null ? -1 : dt.getUid());
         command.getWriteStream().writeShort(newUpdateTime);
         sendCall(command);

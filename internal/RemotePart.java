@@ -561,6 +561,11 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
                 }
             }
             break;
+        case TYPE_UPDATE:
+            type = stream.readType();
+            remoteTypes.setTime(type, stream.readShort());
+            break;
+
 //        case SUBSCRIBE:
 //            // TODO
 //            SubscribeMessage message;

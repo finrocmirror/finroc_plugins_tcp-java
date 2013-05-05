@@ -66,7 +66,7 @@ public class TCP implements Plugin {
         PULLCALL,          // Pull call
         PULLCALL_RETURN,   // Returning pull call
         RPC_CALL,          // RPC call
-        UPDATE_TIME,       // Update on desired update times
+        TYPE_UPDATE,       // Update on remote type info (typically desired update time)
         STRUCTURE_CREATE,  // Update on remote framework elements: Element created
         STRUCTURE_CHANGE,  // Update on remote framework elements: Port changed
         STRUCTURE_DELETE,  // Update on remote framework elements: Element deleted
@@ -109,7 +109,7 @@ public class TCP implements Plugin {
         MessageSize.FIXED,                   // PULLCALL
         MessageSize.VARIABLE_UP_TO_4GB,      // PULLCALL_RETURN
         MessageSize.VARIABLE_UP_TO_4GB,      // RPC_CALL
-        MessageSize.FIXED,                   // UPDATE_TIME
+        MessageSize.VARIABLE_UP_TO_4GB,      // UPDATE_TIME
         MessageSize.VARIABLE_UP_TO_4GB,      // STRUCTURE_CREATE
         MessageSize.VARIABLE_UP_TO_4GB,      // STRUCTURE_CHANGE
         MessageSize.FIXED,                   // STRUCTURE_DELETE
