@@ -41,6 +41,10 @@ import org.finroc.core.plugin.ExternalConnection;
 import org.finroc.core.remote.ModelNode;
 import org.finroc.plugins.tcp.internal.TCP.PeerType;
 
+import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
+import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
+
+
 /**
  * @author Max Reichardt
  *
@@ -75,8 +79,8 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
      */
     final ArrayList<PeerInfo> otherPeers = new ArrayList<PeerInfo>();
 
-    /** Revision of peer information */
-    int peerListRevision;
+    /** Set to true if peer list has changed and needs to be sent */
+    boolean peerListChanged;
 
     /** Primary TCP thread that does all the socket related work for this peer */
     final TCPManagementThread managementThread;
@@ -417,7 +421,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
                 return;
             }
             thisPeer.addresses.add(myAddress);
-            peerListRevision++;
+            setPeerListChanged();
         }
     }
 
@@ -462,7 +466,6 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
             info.neverForget = neverForget;
             info.remotePart = new RemotePart(info, connectionElement, this);
             info.remotePart.init();
-            peerListRevision++;
             return info.remotePart;
         }
     }
@@ -500,6 +503,97 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
             connectionElement.getModelHandler().removeNode(modelRootNode);
         }
         modelRootNode = null;
+    }
+
+    /**
+     * Serialize the peer to stream
+     * @param stream the stream to serialize to
+     * @param peer the peer to serialize
+     */
+    private void serializePeerInfo(OutputStreamBuffer stream, PeerInfo peer) {
+        if ((peer == thisPeer || peer.connected) && peer.peerType != TCP.PeerType.CLIENT_ONLY) {
+            stream.writeBoolean(true);
+
+            peer.uuid.serialize(stream);
+            stream.writeEnum(peer.peerType);
+
+            stream.writeString(peer.name);
+            stream.writeInt(peer.addresses.size());
+            for (InetAddress it : peer.addresses) {
+                TCP.serializeInetAddress(stream, it);
+            }
+        }
+    }
+
+    /**
+     * Deserialize the peer from stream
+     * @param stream the stream to deserialize from
+     * @return the deserialized peer
+     */
+    public PeerInfo deserializePeerInfo(InputStreamBuffer stream) {
+        UUID uuid = new UUID();
+        uuid.deserialize(stream);
+
+        TCP.PeerType peerType = stream.readEnum(TCP.PeerType.class);
+        PeerInfo peer = new PeerInfo(peerType);
+        peer.uuid = uuid;
+
+        peer.name = stream.readString();
+        int size = stream.readInt();
+        peer.addresses.clear();
+        for (int i = 0; i < size; ++i) {
+            InetAddress address = TCP.deserializeInetAddress(stream);
+
+            peer.addresses.add(address);
+        }
+
+        return peer;
+    }
+
+    /**
+     * Process the incoming peer information
+     * @param peer the new peer
+     */
+    public void processIncomingPeerInfo(PeerInfo peer) {
+        PeerInfo existingPeer = null;
+        if (peer.uuid.equals(thisPeer.uuid)) {
+            existingPeer = thisPeer;
+        }
+
+        for (PeerInfo it : otherPeers) {
+            if (peer.uuid.equals(it.uuid)) {
+                existingPeer = it;
+            }
+        }
+
+        if (existingPeer != null) {
+            if (!existingPeer.peerType.equals(peer.peerType)) {
+                log(LogLevel.LL_WARNING, logDomain, "Peer type of existing peer has changed, will not update it.");
+            }
+            for (InetAddress address : peer.addresses) {
+                boolean found = false;
+                for (InetAddress existingAddress : existingPeer.addresses) {
+                    if (existingAddress.equals(address)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    existingPeer.addresses.add(address);
+                    setPeerListChanged();
+                }
+            }
+        } else {
+            otherPeers.add(peer);
+        }
+
+    }
+
+    /**
+     * Mark the peer list as changed
+     */
+    void setPeerListChanged() {
+        peerListChanged = true;
     }
 
     /** Thread that does all the management work for this peer */
@@ -604,6 +698,16 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
             peer.connecting = true;
             modelNode = new ModelNode("Looking for " + peer.uuid.toString() + "...");
             connectionElement.getModelHandler().addNode(modelRootNode, modelNode);
+
+            // FIXME: quite unsure about this one .... however, w/o this, the mainLoopCallback WILL crash, because it is null
+            if (peer.remotePart == null) {
+                try {
+                    peer.remotePart = getRemotePart(peer.uuid, peer.peerType, peer.name, peer.addresses.get(0), false);
+                } catch (Exception e) {
+                    // TODO
+                }
+            }
+
         }
 
         @Override
@@ -636,6 +740,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
                     peer.remotePart.initAndCheckForAdminPort(modelNode);
                     stopThread();
                 } catch (Exception e) {
+                    e.printStackTrace();
                     peer.remotePart.deleteAllChildren();
                     connectionElement.getModelHandler().changeNodeName(modelNode, "Looking for " + peer.uuid.toString() + "...");
                     socket.close();

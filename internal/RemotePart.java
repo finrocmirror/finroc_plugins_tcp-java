@@ -658,6 +658,15 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
 //                return false;
 //            }
 //            break;
+
+        case PEER_INFO:
+            PeerInfo info;
+            while (stream.readBoolean()) {
+                PeerInfo peer = peerImplementation.deserializePeerInfo(stream);
+                log(LogLevel.LL_DEBUG, logDomain, "Received peer info: " + peer.toString());
+                peerImplementation.processIncomingPeerInfo(peer);
+            }
+            break;
         default:
             throw new Exception("Opcode " + opCode.toString() + " not implemented yet.");
         }
