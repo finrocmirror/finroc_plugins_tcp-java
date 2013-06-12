@@ -560,31 +560,35 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
             existingPeer = thisPeer;
         }
 
-        for (PeerInfo it : otherPeers) {
-            if (peer.uuid.equals(it.uuid)) {
-                existingPeer = it;
-            }
-        }
+        synchronized (connectTo) {
 
-        if (existingPeer != null) {
-            if (!existingPeer.peerType.equals(peer.peerType)) {
-                log(LogLevel.LL_WARNING, logDomain, "Peer type of existing peer has changed, will not update it.");
+            for (PeerInfo it : otherPeers) {
+                if (peer.uuid.equals(it.uuid)) {
+                    existingPeer = it;
+                }
             }
-            for (InetAddress address : peer.addresses) {
-                boolean found = false;
-                for (InetAddress existingAddress : existingPeer.addresses) {
-                    if (existingAddress.equals(address)) {
-                        found = true;
-                        break;
+
+            if (existingPeer != null) {
+                if (!existingPeer.peerType.equals(peer.peerType)) {
+                    log(LogLevel.LL_WARNING, logDomain, "Peer type of existing peer has changed, will not update it.");
+                }
+                for (InetAddress address : peer.addresses) {
+                    boolean found = false;
+                    for (InetAddress existingAddress : existingPeer.addresses) {
+                        if (existingAddress.equals(address)) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        existingPeer.addresses.add(address);
+                        setPeerListChanged();
                     }
                 }
-                if (!found) {
-                    existingPeer.addresses.add(address);
-                    setPeerListChanged();
-                }
+            } else {
+                otherPeers.add(peer);
             }
-        } else {
-            otherPeers.add(peer);
+
         }
 
     }
@@ -698,16 +702,6 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
             peer.connecting = true;
             modelNode = new ModelNode("Looking for " + peer.uuid.toString() + "...");
             connectionElement.getModelHandler().addNode(modelRootNode, modelNode);
-
-            // FIXME: quite unsure about this one .... however, w/o this, the mainLoopCallback WILL crash, because it is null
-            if (peer.remotePart == null) {
-                try {
-                    peer.remotePart = getRemotePart(peer.uuid, peer.peerType, peer.name, peer.addresses.get(0), false);
-                } catch (Exception e) {
-                    // TODO
-                }
-            }
-
         }
 
         @Override
@@ -725,12 +719,12 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
                 InetSocketAddress socketAddress = new InetSocketAddress(address, peer.uuid.port);
                 Socket socket = new Socket();
                 try {
-                    if (peer.remotePart.bulkConnection == null) {
+                    if (peer.remotePart == null || peer.remotePart.bulkConnection == null) {
                         socket.connect(socketAddress);
                         //new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, false, modelNode);
                         new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
                     }
-                    if (peer.remotePart.managementConnection == null) {
+                    if (peer.remotePart == null || peer.remotePart.managementConnection == null) {
                         socket = new Socket();
                         socket.connect(socketAddress);
                         //new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
@@ -740,7 +734,6 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
                     peer.remotePart.initAndCheckForAdminPort(modelNode);
                     stopThread();
                 } catch (Exception e) {
-                    e.printStackTrace();
                     peer.remotePart.deleteAllChildren();
                     connectionElement.getModelHandler().changeNodeName(modelNode, "Looking for " + peer.uuid.toString() + "...");
                     socket.close();
