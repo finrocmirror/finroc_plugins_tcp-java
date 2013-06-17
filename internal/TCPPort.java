@@ -226,7 +226,7 @@ abstract class TCPPort extends NetPort {
                 PortDataManager pd = pb.getLockedUnsafeRaw(true);
                 stream.writeByte(changedFlag);
                 pd.getTimestamp().serialize(stream);
-                pd.getObject().serialize(stream, getEncoding());
+                pd.getObject().serialize(stream, getInternalEncoding());
                 pd.releaseLock();
             } else {
                 PortQueueFragmentRaw fragment = ThreadLocalCache.getFast().tempFragment;
@@ -239,7 +239,7 @@ abstract class TCPPort extends NetPort {
                     first = false;
                     stream.writeByte(changedFlag);
                     pd.getManager().getTimestamp().serialize(stream);
-                    pd.getData().serialize(stream, getEncoding());
+                    pd.getData().serialize(stream, getInternalEncoding());
                     pd.getManager().releaseLock();
                 }
             }
@@ -257,7 +257,7 @@ abstract class TCPPort extends NetPort {
                 if (writeTime) {
                     ccitc.getTimestamp().serialize(stream);
                 }
-                ccitc.getObject().serialize(stream, getEncoding());
+                ccitc.getObject().serialize(stream, getInternalEncoding());
 
                 ccitc.recycle2();
             } else {
@@ -277,7 +277,7 @@ abstract class TCPPort extends NetPort {
                     first = false;
                     stream.writeByte(changedFlag);
                     pd.getTimestamp().serialize(stream);
-                    pd.getObject().serialize(stream, getEncoding());
+                    pd.getObject().serialize(stream, getInternalEncoding());
                     pd.recycle2();
                 }
             }
