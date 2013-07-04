@@ -21,7 +21,6 @@
 //----------------------------------------------------------------------
 package org.finroc.plugins.tcp.internal;
 
-import java.lang.management.ManagementFactory;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -139,8 +138,16 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
         if (peerType == TCP.PeerType.CLIENT_ONLY) {
             // set to negative process id
             try {
-                String pid = ManagementFactory.getRuntimeMXBean().getName();
-                thisPeer.uuid.port = -Integer.parseInt(pid.substring(0, pid.indexOf("@")));
+                try {
+                    Class<?> managementFactoryClass = Class.forName("java.lang.management.ManagementFactory");
+                    Object bean = managementFactoryClass.getMethod("getRuntimeMXBean").invoke(null);
+                    String pid = bean.getClass().getMethod("getName").invoke(bean).toString();
+                    thisPeer.uuid.port = -Integer.parseInt(pid.substring(0, pid.indexOf("@")));
+                } catch (ClassNotFoundException e) {
+                    // maybe we're on Android (?)
+                    Class<?> processClass = Class.forName("android.os.Process");
+                    thisPeer.uuid.port = (Integer)processClass.getMethod("myPid()").invoke(null);
+                }
             } catch (Exception e) {
                 thisPeer.uuid.port = -1;
                 log(LogLevel.LL_ERROR, logDomain, "Error retrieving process id.", e);
