@@ -187,7 +187,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
                 if (i == 0) {
                     remoteRuntime.elementLookup.put(info.getHandle(), remoteElement);
                 }
-                remoteElement.setUserObject(info.getLink(i).name);
+                remoteElement.setName(info.getLink(i).name);
                 remoteElement.setTags(info.getTags());
                 remoteElement.setFlags(info.getFlags());
                 ModelNode parent = getFrameworkElement(info.getLink(i).parent, remoteRuntime);
@@ -204,7 +204,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             }
         } else {
             RemoteFrameworkElement remoteElement = getFrameworkElement(info.getHandle(), remoteRuntime);
-            remoteElement.setUserObject(info.getLink(0).name);
+            remoteElement.setName(info.getLink(0).name);
             remoteElement.setTags(info.getTags());
             remoteElement.setFlags(info.getFlags());
             ModelNode parent = getFrameworkElement(info.getLink(0).parent, remoteRuntime);
