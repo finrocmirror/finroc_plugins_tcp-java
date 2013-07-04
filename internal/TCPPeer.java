@@ -21,6 +21,7 @@
 //----------------------------------------------------------------------
 package org.finroc.plugins.tcp.internal;
 
+import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -141,7 +142,9 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
                 try {
                     Class<?> managementFactoryClass = Class.forName("java.lang.management.ManagementFactory");
                     Object bean = managementFactoryClass.getMethod("getRuntimeMXBean").invoke(null);
-                    String pid = bean.getClass().getMethod("getName").invoke(bean).toString();
+                    Method getNameMethod = bean.getClass().getMethod("getName");
+                    getNameMethod.setAccessible(true);
+                    String pid = getNameMethod.invoke(bean).toString();
                     thisPeer.uuid.port = -Integer.parseInt(pid.substring(0, pid.indexOf("@")));
                 } catch (ClassNotFoundException e) {
                     // maybe we're on Android (?)
