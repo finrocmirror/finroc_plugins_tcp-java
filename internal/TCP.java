@@ -27,6 +27,7 @@ import java.net.UnknownHostException;
 
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.RuntimeEnvironment;
+import org.finroc.core.RuntimeSettings;
 import org.finroc.core.datatype.FrameworkElementInfo;
 import org.finroc.core.parameter.ConstructorParameters;
 import org.finroc.core.parameter.StaticParameterList;
@@ -212,7 +213,7 @@ public class TCP implements Plugin {
             this.name = name;
             this.flags = flags;
             Plugins.getInstance().registerExternalConnection(this);
-            this.group = Plugins.getInstance().getContainingJarFile(TCP.class);
+            this.group = RuntimeSettings.ANDROID_PLATFORM ? "finroc_plugins_tcp" : Plugins.getInstance().getContainingJarFile(TCP.class);
         }
 
         @Override
