@@ -1017,7 +1017,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
 
             synchronized (getPort().getRegistryLock()) {
                 AbstractPort p = getPort();
-                boolean revPush = p.isInputPort() && p.isConnectedToReversePushSources();
+                boolean revPush = p.isInputPort() && (p.isConnectedToReversePushSources() || p.getOutgoingConnectionCount() > 0);
                 short time = getUpdateIntervalForNet();
                 short strategy = p.isInputPort() ? 0 : p.getStrategy();
                 if (!p.isConnected()) {
