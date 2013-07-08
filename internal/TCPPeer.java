@@ -744,7 +744,9 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
                     peer.remotePart.initAndCheckForAdminPort(modelNode);
                     stopThread();
                 } catch (Exception e) {
-                    peer.remotePart.deleteAllChildren();
+                    if (peer.remotePart != null) {
+                        peer.remotePart.deleteAllChildren();
+                    }
                     connectionElement.getModelHandler().changeNodeName(modelNode, "Looking for " + peer.uuid.toString() + "...");
                     socket.close();
                     // simply try again
