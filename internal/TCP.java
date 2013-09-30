@@ -125,7 +125,7 @@ public class TCP implements Plugin {
     public final static byte SUCCESS = 100, FAIL = 101;
 
     /** Name of ports only connection */
-    public static final String TCP_PORTS_ONLY_NAME = "TCP ports only";
+    public static final String TCP_PORTS_ONLY_NAME = "TCP-shared-ports";
 
     /** Greet message for initializing/identifying Finroc connections */
     public static final String GREET_MESSAGE = "Greetings! I am a Finroc TCP peer.";
