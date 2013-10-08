@@ -528,9 +528,18 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
             stream.writeEnum(peer.peerType);
 
             stream.writeString(peer.name);
-            stream.writeInt(peer.addresses.size());
-            for (InetAddress it : peer.addresses) {
-                TCP.serializeInetAddress(stream, it);
+            int addressCount = 0;
+            for (InetAddress address : peer.addresses) {
+                if (!address.isLoopbackAddress()) {
+                    addressCount++;
+                }
+            }
+            stream.writeInt(addressCount);
+
+            for (InetAddress address : peer.addresses) {
+                if (!address.isLoopbackAddress()) {
+                    TCP.serializeInetAddress(stream, address);
+                }
             }
         }
     }
@@ -582,25 +591,51 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
                 if (!existingPeer.peerType.equals(peer.peerType)) {
                     log(LogLevel.LL_WARNING, logDomain, "Peer type of existing peer has changed, will not update it.");
                 }
-                for (InetAddress address : peer.addresses) {
-                    boolean found = false;
-                    for (InetAddress existingAddress : existingPeer.addresses) {
-                        if (existingAddress.equals(address)) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        existingPeer.addresses.add(address);
-                        setPeerListChanged();
-                    }
-                }
+                addPeerAddresses(existingPeer, peer.addresses);
             } else {
                 otherPeers.add(peer);
             }
 
         }
+    }
 
+    /**
+     * Adds all the provided addresses to the specified peer info
+     * (if they have not been added already)
+     *
+     * @param existingPeer Peer to add addresses to
+     * @param addresses Addresses to check and possibly add
+     */
+    private void addPeerAddresses(PeerInfo existingPeer, ArrayList<InetAddress> addresses) {
+        for (InetAddress address : addresses) {
+            boolean found = false;
+            for (InetAddress existingAddress : existingPeer.addresses) {
+                if (existingAddress.equals(address)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                existingPeer.addresses.add(address);
+                setPeerListChanged();
+            }
+        }
+    }
+
+    /**
+     * Scans current peer list and adds missing addresses
+     * (e.g. if two peers have the same host, they must both have the same IP addresses)
+     */
+    public void inferMissingAddresses() {
+        for (PeerInfo info : otherPeers) {
+            if (info.addresses.size() == 0) {
+                for (PeerInfo otherInfo : otherPeers) {
+                    if (otherInfo != info && otherInfo.uuid.hostName.equals(info.uuid.hostName)) {
+                        addPeerAddresses(info, otherInfo.addresses);
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -724,6 +759,8 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
                 peer.connecting = false;
                 return;
             }
+
+            inferMissingAddresses();
 
             for (InetAddress address : peer.addresses) {
                 InetSocketAddress socketAddress = new InetSocketAddress(address, peer.uuid.port);
