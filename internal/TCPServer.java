@@ -88,7 +88,7 @@ class TCPServer extends FrameworkElement implements org.rrlib.finroc_core_utils.
                 break;
             }
             int nextPort = port + 1;
-            log(LogLevel.LL_USER, logDomain, "Port " + port + " occupied - trying " + nextPort);
+            log(LogLevel.USER, logDomain, "Port " + port + " occupied - trying " + nextPort);
             port++;
         }
 
@@ -101,7 +101,7 @@ class TCPServer extends FrameworkElement implements org.rrlib.finroc_core_utils.
             try {
                 s.close();
             } catch (IOException e) {
-                log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
+                log(LogLevel.DEBUG_WARNING, logDomain, e);
             }
             return;
         }
@@ -109,7 +109,7 @@ class TCPServer extends FrameworkElement implements org.rrlib.finroc_core_utils.
             //@SuppressWarnings("unused")
             //TCPServerConnection connection = new TCPServerConnection(s, firstByte, this, peer); // TODO
         } catch (Exception e) {
-            log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
+            log(LogLevel.DEBUG_WARNING, logDomain, e);
         }
     }
 

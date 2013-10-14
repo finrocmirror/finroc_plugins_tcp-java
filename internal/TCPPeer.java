@@ -134,7 +134,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
             thisPeer.uuid.hostName = InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
             thisPeer.uuid.hostName = "No host name";
-            log(LogLevel.LL_ERROR, logDomain, "Error retrieving host name.", e);
+            log(LogLevel.ERROR, logDomain, "Error retrieving host name.", e);
         }
         if (peerType == TCP.PeerType.CLIENT_ONLY) {
             // set to negative process id
@@ -153,7 +153,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
                 }
             } catch (Exception e) {
                 thisPeer.uuid.port = -1;
-                log(LogLevel.LL_ERROR, logDomain, "Error retrieving process id.", e);
+                log(LogLevel.ERROR, logDomain, "Error retrieving process id.", e);
             }
         } else {
             thisPeer.uuid.port = server.getPort();
@@ -449,7 +449,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
     public RemotePart getRemotePart(UUID uuid, TCP.PeerType peerType, String peerName, InetAddress address, boolean neverForget) throws Exception {
         synchronized (connectTo) {
             if (uuid.equals(this.thisPeer.uuid)) {
-                log(LogLevel.LL_ERROR, logDomain, "Remote part has the same UUID as this one: " + uuid.toString());
+                log(LogLevel.ERROR, logDomain, "Remote part has the same UUID as this one: " + uuid.toString());
                 throw new ConnectException("Remote part has the same UUID as this one: " + uuid.toString());
             }
 
@@ -589,7 +589,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
 
             if (existingPeer != null) {
                 if (!existingPeer.peerType.equals(peer.peerType)) {
-                    log(LogLevel.LL_WARNING, logDomain, "Peer type of existing peer has changed, will not update it.");
+                    log(LogLevel.WARNING, logDomain, "Peer type of existing peer has changed, will not update it.");
                 }
                 addPeerAddresses(existingPeer, peer.addresses);
             } else {

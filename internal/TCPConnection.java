@@ -199,11 +199,11 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
         readBufferStream.readFully(greetBuffer);
         readBufferStream.readByte(); // String terminator
         if (!new String(greetBuffer).equals(TCP.GREET_MESSAGE)) {
-            log(LogLevel.LL_WARNING, logDomain, "Connection partner does not speak Finroc protocol");
+            log(LogLevel.WARNING, logDomain, "Connection partner does not speak Finroc protocol");
             throw new ConnectException("Partner does not speak Finroc protocol");
         }
         if (readBufferStream.readShort() != TCP.PROTOCOL_VERSION) {
-            log(LogLevel.LL_WARNING, logDomain, "Connection partner has wrong protocol version");
+            log(LogLevel.WARNING, logDomain, "Connection partner has wrong protocol version");
             throw new ConnectException("Partner has wrong protocol version");
         }
         readBufferStream.readInt(); // skip offset
@@ -279,7 +279,7 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                     if (readType) {
                         DataTypeBase type = structurePacketReadStream.readType();
                         if (type == null || type != CoreString.TYPE) {
-                            log(LogLevel.LL_WARNING, logDomain, "Type encoding does not seem to work");
+                            log(LogLevel.WARNING, logDomain, "Type encoding does not seem to work");
                             throw new ConnectException("Type encoding does not seem to work");
                         }
                         readType = false;
@@ -292,7 +292,7 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                 }
                 // remotePart.initAndCheckForAdminPort(modelNode); do this later: after bulk connection has been initialized
             } catch (Exception e) {
-                logDomain.log(LogLevel.LL_DEBUG_WARNING, uuid.toString(), e);
+                logDomain.log(LogLevel.DEBUG_WARNING, uuid.toString(), e);
                 //peer.connectionElement.getModelHandler().removeNode(statusNode);
                 remotePart.removeConnection(this);
                 throw e;
@@ -345,7 +345,7 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                 lockedWriter.join();
                 writer = null;
             } catch (InterruptedException e) {
-                log(LogLevel.LL_WARNING, logDomain, "warning: TCPConnection::disconnect() - Interrupted waiting for writer thread.");
+                log(LogLevel.WARNING, logDomain, "warning: TCPConnection::disconnect() - Interrupted waiting for writer thread.");
             }
         }
         Reader lockedReader = reader;
@@ -354,7 +354,7 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                 lockedReader.join();
                 reader = null;
             } catch (InterruptedException e) {
-                log(LogLevel.LL_WARNING, logDomain, "warning: TCPConnection::disconnect() - Interrupted waiting for reader thread.");
+                log(LogLevel.WARNING, logDomain, "warning: TCPConnection::disconnect() - Interrupted waiting for reader thread.");
             }
         }
     }
@@ -419,7 +419,7 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                     while (stream.getAbsoluteReadPosition() < nextPacketStart) {
                         TCP.OpCode opCode = stream.readEnum(TCP.OpCode.class);
                         if (opCode.ordinal() >= TCP.OpCode.OTHER.ordinal()) {
-                            logDomain.log(LogLevel.LL_WARNING, getLogDescription(), "Received corrupted TCP message batch. Invalid opcode. Skipping.");
+                            logDomain.log(LogLevel.WARNING, getLogDescription(), "Received corrupted TCP message batch. Invalid opcode. Skipping.");
                             stream.skip((int)(nextPacketStart - stream.getAbsoluteReadPosition()));
                             break;
                         }
@@ -429,7 +429,7 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                         //long messageEncodingSize = messageSizeEncoding.ordinal() * messageSizeEncoding.ordinal(); // :-)
                         long commandStartPosition = stream.getAbsoluteReadPosition();
                         if (messageSize == 0 || (stream.getAbsoluteReadPosition() + messageSize > nextPacketStart)) {
-                            logDomain.log(LogLevel.LL_WARNING, getLogDescription(), "Received corrupted TCP message batch. Invalid message size: " + messageSize + ". Skipping.");
+                            logDomain.log(LogLevel.WARNING, getLogDescription(), "Received corrupted TCP message batch. Invalid message size: " + messageSize + ". Skipping.");
                             stream.skip((int)(nextPacketStart - stream.getAbsoluteReadPosition()));
                             break;
                         }
@@ -450,16 +450,16 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                                 remotePart.processMessage(opCode, stream, remoteTypes, TCPConnection.this);
                                 checkCommandEnd(stream);
                             } catch (Exception e) {
-                                logDomain.log(LogLevel.LL_WARNING, getLogDescription(), "Failed to deserialize message of type " + opCode.toString() + ". Skipping.");
+                                logDomain.log(LogLevel.WARNING, getLogDescription(), "Failed to deserialize message of type " + opCode.toString() + ". Skipping.");
                                 long skip = nextCommandStartPosition - stream.getAbsoluteReadPosition();
                                 if (skip >= 0) {
                                     stream.skip((int)skip);
                                 } else {
                                     skip = nextPacketStart - stream.getAbsoluteReadPosition();
                                     if (skip >= 0) {
-                                        logDomain.log(LogLevel.LL_WARNING, getLogDescription(), "Too much stream content was read. This is not handled yet. Moving to next message batch."); // TODO
+                                        logDomain.log(LogLevel.WARNING, getLogDescription(), "Too much stream content was read. This is not handled yet. Moving to next message batch."); // TODO
                                     } else {
-                                        logDomain.log(LogLevel.LL_WARNING, getLogDescription(), "Too much stream content was read - exceeding message batch. This is not handled yet. Disconnecting."); // TODO
+                                        logDomain.log(LogLevel.WARNING, getLogDescription(), "Too much stream content was read - exceeding message batch. This is not handled yet. Disconnecting."); // TODO
                                     }
                                 }
                             }
@@ -485,13 +485,13 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                     e = (Exception)e.getCause();
                 }
                 if (!(e instanceof SocketException || e instanceof IOException)) {
-                    log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
+                    log(LogLevel.DEBUG_WARNING, logDomain, e);
                 }
             }
             try {
                 remotePart.disconnect();
             } catch (Exception e) {
-                log(LogLevel.LL_WARNING, logDomain, e);
+                log(LogLevel.WARNING, logDomain, e);
             }
 
             try {
@@ -510,7 +510,7 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                 } catch (SocketException e) {
                     // do nothing... can happen if socket is close twice
                 } catch (Exception e) {
-                    logDomain.log(LogLevel.LL_ERROR, "NetSocket", e);
+                    logDomain.log(LogLevel.ERROR, "NetSocket", e);
                 }
             }
         }
@@ -628,7 +628,7 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                         try {
                             remotePart.disconnect();
                         } catch (Exception e) {
-                            log(LogLevel.LL_WARNING, logDomain, e);
+                            log(LogLevel.WARNING, logDomain, e);
                         }
                         //cleanShutdown();
                         return;
@@ -757,13 +757,13 @@ class TCPConnection extends LogUser implements UpdateTimeChangeListener, Respons
                     e = (Exception)e.getCause();
                 }
                 if (!(e instanceof SocketException)) {
-                    log(LogLevel.LL_WARNING, logDomain, e);
+                    log(LogLevel.WARNING, logDomain, e);
                 }
 
                 try {
                     remotePart.disconnect();
                 } catch (Exception e2) {
-                    log(LogLevel.LL_WARNING, logDomain, e2);
+                    log(LogLevel.WARNING, logDomain, e2);
                 }
             }
 

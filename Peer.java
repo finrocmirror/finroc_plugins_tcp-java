@@ -125,7 +125,7 @@ public class Peer extends ExternalConnection {
         try {
             this.disconnect();
         } catch (Exception e) {
-            log(LogLevel.LL_DEBUG_WARNING, logDomain, e);
+            log(LogLevel.DEBUG_WARNING, logDomain, e);
         }
         /*if (tracker != null) {
             tracker.delete();
