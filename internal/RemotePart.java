@@ -1059,21 +1059,27 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
         }
 
         @Override
-        public List<AbstractPort> getRemoteEdgeDestinations() {
-            ArrayList<AbstractPort> result = new ArrayList<AbstractPort>();
+        public int getRemoteEdgeDestinations(List<AbstractPort> result) {
+            result.clear();
             for (int i = 0; i < connections.size(); i++) {
                 ProxyPort pp = remotePortRegister.get(connections.get(i).handle);
                 if (pp != null) {
                     result.add(pp.getPort());
                 }
             }
+            int numberOfReverseConnections = 0;
             for (FrameworkElementInfo.NetworkConnection connection : networkConnections) {
                 AbstractPort port = connection.getDestinationPort(currentModelNode);
                 if (port != null) {
-                    result.add(port);
+                    if (connection.isDestinationSource()) {
+                        numberOfReverseConnections++;
+                        result.add(port);
+                    } else {
+                        result.add(result.size() - numberOfReverseConnections, port);
+                    }
                 }
             }
-            return result;
+            return result.size() - numberOfReverseConnections;
         }
 
         @Override
