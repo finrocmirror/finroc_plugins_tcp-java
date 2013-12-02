@@ -220,7 +220,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
      * Creates new model of remote part
      */
     void createNewModel() {
-        newModelNode = new RemoteRuntime(peerInfo.toString(), adminInterface, managementConnection.remoteTypes);
+        newModelNode = new RemoteRuntime(peerInfo.toString(), peerInfo.uuid.toString(), adminInterface, managementConnection.remoteTypes);
         newModelNode.setFlags(RuntimeEnvironment.getInstance().getAllFlags());
     }
 
@@ -698,7 +698,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
                     if (connections) {
                         info.deserializeConnections(stream);
                     }
-                    port.update(flags, strategy, updateInterval, connections ? info.copyConnections() : null);
+                    port.update(flags, strategy, updateInterval, connections ? info.copyConnections() : null, connections ? info.copyNetworkConnections() : null);
 
                     RemotePort[] modelElements = RemotePort.get(port.getPort());
                     for (RemotePort modelElement : modelElements) {
@@ -873,6 +873,9 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
         /** Handles (remote) of port's outgoing connections */
         protected ArrayList<FrameworkElementInfo.ConnectionInfo> connections = new ArrayList<FrameworkElementInfo.ConnectionInfo>();
 
+        /** Info on port's outgoing network connections */
+        protected ArrayList<FrameworkElementInfo.NetworkConnection> networkConnections = new ArrayList<FrameworkElementInfo.NetworkConnection>();
+
 
         /**
          * @param portInfo Port information
@@ -887,6 +890,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             updateIntervalPartner = portInfo.getMinNetUpdateInterval(); // TODO redundant?
             propagateStrategyFromTheNet(portInfo.getStrategy());
             connections = portInfo.copyConnections();
+            networkConnections = portInfo.copyNetworkConnections();
 
             log(LogLevel.DEBUG_VERBOSE_2, logDomain, "Updating port info: " + portInfo.toString());
             for (int i = 1, n = portInfo.getLinkCount(); i < n; i++) {
@@ -905,14 +909,21 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             }
         }
 
-        public void update(int flags, short strategy, short minNetUpdateInterval, ArrayList<FrameworkElementInfo.ConnectionInfo> newConnections) {
+        public void update(int flags, short strategy, short minNetUpdateInterval, ArrayList<FrameworkElementInfo.ConnectionInfo> newConnections,
+                           ArrayList<FrameworkElementInfo.NetworkConnection> newNetworkConnections) {
             updateFlags(flags);
             getPort().setMinNetUpdateInterval(minNetUpdateInterval);
             updateIntervalPartner = minNetUpdateInterval; // TODO redundant?
             propagateStrategyFromTheNet(strategy);
-            connections.clear();
             if (newConnections != null) {
                 connections = newConnections;
+            } else if (connections.size() > 0) {
+                connections = new ArrayList<FrameworkElementInfo.ConnectionInfo>(); // create new list for thread-safety reasons
+            }
+            if (newNetworkConnections != null) {
+                networkConnections = newNetworkConnections;
+            } else if (connections.size() > 0) {
+                networkConnections = new ArrayList<FrameworkElementInfo.NetworkConnection>(); // create new list for thread-safety reasons
             }
         }
 
@@ -1048,15 +1059,27 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
         }
 
         @Override
-        public List<AbstractPort> getRemoteEdgeDestinations() {
-            ArrayList<AbstractPort> result = new ArrayList<AbstractPort>();
+        public int getRemoteEdgeDestinations(List<AbstractPort> result) {
+            result.clear();
             for (int i = 0; i < connections.size(); i++) {
                 ProxyPort pp = remotePortRegister.get(connections.get(i).handle);
                 if (pp != null) {
                     result.add(pp.getPort());
                 }
             }
-            return result;
+            int numberOfReverseConnections = 0;
+            for (FrameworkElementInfo.NetworkConnection connection : networkConnections) {
+                AbstractPort port = connection.getDestinationPort(currentModelNode);
+                if (port != null) {
+                    if (connection.isDestinationSource()) {
+                        numberOfReverseConnections++;
+                        result.add(port);
+                    } else {
+                        result.add(result.size() - numberOfReverseConnections, port);
+                    }
+                }
+            }
+            return result.size() - numberOfReverseConnections;
         }
 
         @Override
