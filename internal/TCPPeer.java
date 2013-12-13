@@ -29,11 +29,9 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 
-import org.rrlib.finroc_core_utils.jc.log.LogDefinitions;
-import org.rrlib.finroc_core_utils.jc.log.LogUser;
 import org.rrlib.finroc_core_utils.jc.thread.LoopThread;
-import org.rrlib.finroc_core_utils.log.LogDomain;
-import org.rrlib.finroc_core_utils.log.LogLevel;
+import org.rrlib.logging.Log;
+import org.rrlib.logging.LogLevel;
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElement.ChildIterator;
 import org.finroc.core.datatype.FrameworkElementInfo;
@@ -41,8 +39,8 @@ import org.finroc.core.plugin.ExternalConnection;
 import org.finroc.core.remote.ModelNode;
 import org.finroc.plugins.tcp.internal.TCP.PeerType;
 
-import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
-import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
+import org.rrlib.serialization.BinaryInputStream;
+import org.rrlib.serialization.BinaryOutputStream;
 
 
 /**
@@ -55,7 +53,7 @@ import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
  * TODO: improve this (client and server should use the same TCPConnections
  * to communicate with another peer).
  */
-public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener*/
+public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
 
     /** Framework element associated with server */
     final ExternalConnection connectionElement;
@@ -103,9 +101,6 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
     /** Root node of of model of remote runtime environments */
     ModelNode modelRootNode;
 
-    /** Log domain for this class */
-    public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
-
 
     /**
      * @param frameworkElement Framework element associated with peer
@@ -134,7 +129,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
             thisPeer.uuid.hostName = InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
             thisPeer.uuid.hostName = "No host name";
-            log(LogLevel.ERROR, logDomain, "Error retrieving host name.", e);
+            Log.log(LogLevel.ERROR, this, "Error retrieving host name.", e);
         }
         if (peerType == TCP.PeerType.CLIENT_ONLY) {
             // set to negative process id
@@ -153,7 +148,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
                 }
             } catch (Exception e) {
                 thisPeer.uuid.port = -1;
-                log(LogLevel.ERROR, logDomain, "Error retrieving process id.", e);
+                Log.log(LogLevel.ERROR, this, "Error retrieving process id.", e);
             }
         } else {
             thisPeer.uuid.port = server.getPort();
@@ -449,7 +444,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
     public RemotePart getRemotePart(UUID uuid, TCP.PeerType peerType, String peerName, InetAddress address, boolean neverForget) throws Exception {
         synchronized (connectTo) {
             if (uuid.equals(this.thisPeer.uuid)) {
-                log(LogLevel.ERROR, logDomain, "Remote part has the same UUID as this one: " + uuid.toString());
+                Log.log(LogLevel.ERROR, this, "Remote part has the same UUID as this one: " + uuid.toString());
                 throw new ConnectException("Remote part has the same UUID as this one: " + uuid.toString());
             }
 
@@ -520,7 +515,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
      * @param stream the stream to serialize to
      * @param peer the peer to serialize
      */
-    private void serializePeerInfo(OutputStreamBuffer stream, PeerInfo peer) {
+    private void serializePeerInfo(BinaryOutputStream stream, PeerInfo peer) {
         if ((peer == thisPeer || peer.connected) && peer.peerType != TCP.PeerType.CLIENT_ONLY) {
             stream.writeBoolean(true);
 
@@ -549,7 +544,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
      * @param stream the stream to deserialize from
      * @return the deserialized peer
      */
-    public PeerInfo deserializePeerInfo(InputStreamBuffer stream) {
+    public PeerInfo deserializePeerInfo(BinaryInputStream stream) {
         UUID uuid = new UUID();
         uuid.deserialize(stream);
 
@@ -589,7 +584,7 @@ public class TCPPeer extends LogUser { /*implements AbstractPeerTracker.Listener
 
             if (existingPeer != null) {
                 if (!existingPeer.peerType.equals(peer.peerType)) {
-                    log(LogLevel.WARNING, logDomain, "Peer type of existing peer has changed, will not update it.");
+                    Log.log(LogLevel.WARNING, this, "Peer type of existing peer has changed, will not update it.");
                 }
                 addPeerAddresses(existingPeer, peer.addresses);
             } else {

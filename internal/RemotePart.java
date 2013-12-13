@@ -60,11 +60,12 @@ import org.finroc.core.remote.RemoteRuntime;
 import org.finroc.core.remote.RemoteTypes;
 import org.finroc.plugins.tcp.internal.TCP.OpCode;
 import org.rrlib.finroc_core_utils.jc.AtomicInt;
-import org.rrlib.finroc_core_utils.log.LogLevel;
-import org.rrlib.finroc_core_utils.rtti.DataTypeBase;
-import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
-import org.rrlib.finroc_core_utils.serialization.MemoryBuffer;
-import org.rrlib.finroc_core_utils.serialization.Serialization;
+import org.rrlib.logging.Log;
+import org.rrlib.logging.LogLevel;
+import org.rrlib.serialization.BinaryInputStream;
+import org.rrlib.serialization.MemoryBuffer;
+import org.rrlib.serialization.Serialization;
+import org.rrlib.serialization.rtti.DataTypeBase;
 
 /**
  * @author Max Reichardt
@@ -164,7 +165,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
 
         if (bulkConnection != null && expressConnection != null && managementConnection != null) {
             peerInfo.connected = true;
-            log(LogLevel.DEBUG, logDomain, "Connected to " + peerInfo.toString());
+            Log.log(LogLevel.DEBUG, this, "Connected to " + peerInfo.toString());
         }
 
         return true;
@@ -179,7 +180,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
      */
     void addRemoteStructure(FrameworkElementInfo info, boolean initalStructureExchange) {
         RemoteRuntime remoteRuntime = initalStructureExchange ? newModelNode : currentModelNode;
-        logDomain.log(LogLevel.DEBUG_VERBOSE_1, getLogDescription(), "Adding element: " + info.toString());
+        Log.log(LogLevel.DEBUG_VERBOSE_1, this, "Adding element: " + info.toString());
         if (info.isPort()) {
             ProxyPort port = new ProxyPort(info);
             for (int i = 0; i < info.getLinkCount(); i++) {
@@ -394,7 +395,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             if (fe != null && fe.isPort() && fe.isReady()) {
                 ((AbstractPort)fe).connectTo(adminInterface.getWrapped());
             } else {
-                log(LogLevel.ERROR, logDomain, "Could not find administration port to connect to.");
+                Log.log(LogLevel.ERROR, this, "Could not find administration port to connect to.");
             }
         }
 
@@ -422,8 +423,8 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
      * @param connection Connection this was called from
      * @param elementInfoBuffer Framework element info buffer to use
      */
-    public void processMessage(OpCode opCode, InputStreamBuffer stream, RemoteTypes remoteTypes, TCPConnection connection) throws Exception {
-        log(LogLevel.DEBUG_VERBOSE_1, logDomain, "Processing message " + opCode.toString());
+    public void processMessage(OpCode opCode, BinaryInputStream stream, RemoteTypes remoteTypes, TCPConnection connection) throws Exception {
+        Log.log(LogLevel.DEBUG_VERBOSE_1, this, "Processing message " + opCode.toString());
 
         switch (opCode) {
         case PORT_VALUE_CHANGE:
@@ -445,7 +446,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             DataTypeBase type = stream.readType();
             byte methodId = stream.readByte();
             if (!(type instanceof RPCInterfaceType)) {
-                log(LogLevel.WARNING, logDomain, "Type " + type.getName() + " is no RPC type. Ignoring call.");
+                Log.log(LogLevel.WARNING, this, "Type " + type.getName() + " is no RPC type. Ignoring call.");
                 return;
             }
             RPCInterfaceType rpcInterfaceType = (RPCInterfaceType)type;
@@ -663,7 +664,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             PeerInfo info;
             while (stream.readBoolean()) {
                 PeerInfo peer = peerImplementation.deserializePeerInfo(stream);
-                log(LogLevel.DEBUG, logDomain, "Received peer info: " + peer.toString());
+                Log.log(LogLevel.DEBUG, this, "Received peer info: " + peer.toString());
                 peerImplementation.processIncomingPeerInfo(peer);
             }
             break;
@@ -681,7 +682,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
      */
     public void processStructurePacket(MemoryBuffer structureBufferToProcess, RemoteTypes remoteTypes) {
         FrameworkElementInfo info = new FrameworkElementInfo();
-        InputStreamBuffer stream = new InputStreamBuffer(structureBufferToProcess, remoteTypes);
+        BinaryInputStream stream = new BinaryInputStream(structureBufferToProcess, remoteTypes);
         while (stream.moreDataAvailable()) {
             TCP.OpCode opcode = stream.readEnum(TCP.OpCode.class);
             if (opcode == TCP.OpCode.STRUCTURE_CREATE) {
@@ -729,7 +730,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
                     }
                 }
             } else {
-                log(LogLevel.WARNING, logDomain, "Received corrupted structure info. Skipping packet");
+                Log.log(LogLevel.WARNING, this, "Received corrupted structure info. Skipping packet");
                 return;
             }
             TCPConnection.checkCommandEnd(stream);
@@ -848,7 +849,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             return;
         }
         if (this.sendStructureInfo != FrameworkElementInfo.StructureExchange.NONE && this.sendStructureInfo != sendStructureInfo) {
-            log(LogLevel.WARNING, logDomain, "Desired structure info already set to " + this.sendStructureInfo.toString() + ". This is likely to cause trouble.");
+            Log.log(LogLevel.WARNING, this, "Desired structure info already set to " + this.sendStructureInfo.toString() + ". This is likely to cause trouble.");
         }
         this.sendStructureInfo = sendStructureInfo;
     }
@@ -892,7 +893,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             connections = portInfo.copyConnections();
             networkConnections = portInfo.copyNetworkConnections();
 
-            log(LogLevel.DEBUG_VERBOSE_2, logDomain, "Updating port info: " + portInfo.toString());
+            Log.log(LogLevel.DEBUG_VERBOSE_2, this, "Updating port info: " + portInfo.toString());
             for (int i = 1, n = portInfo.getLinkCount(); i < n; i++) {
                 FrameworkElement parent = portInfo.getLink(i).unique ? getGlobalLinkElement() : (FrameworkElement)RemotePart.this;
                 getPort().link(parent, portInfo.getLink(i).name);
@@ -980,7 +981,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
 //                propagateStrategyFromTheNet(portInfo.getStrategy());
 //                portInfo.getConnections(connections);
 //
-//                log(LogLevel.LL_DEBUG_VERBOSE_2, logDomain, "Updating port info: " + portInfo.toString());
+//                log(LogLevel.LL_DEBUG_VERBOSE_2, this, "Updating port info: " + portInfo.toString());
 //                if (opCode == TCP.OpCode.STRUCTURE_CREATE) {
 //                    assert(!getPort().isReady());
 //                    for (int i = 1, n = portInfo.getLinkCount(); i < n; i++) {

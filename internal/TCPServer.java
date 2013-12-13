@@ -24,10 +24,9 @@ package org.finroc.plugins.tcp.internal;
 import java.io.IOException;
 import java.net.Socket;
 
-import org.rrlib.finroc_core_utils.jc.log.LogDefinitions;
 import org.rrlib.finroc_core_utils.jc.net.TCPConnectionHandler;
-import org.rrlib.finroc_core_utils.log.LogDomain;
-import org.rrlib.finroc_core_utils.log.LogLevel;
+import org.rrlib.logging.Log;
+import org.rrlib.logging.LogLevel;
 
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElementFlags;
@@ -55,9 +54,6 @@ class TCPServer extends FrameworkElement implements org.rrlib.finroc_core_utils.
 
     /** Peer that this server belongs to */
     private final TCPPeer peer;
-
-    /** Log domain for this class */
-    public static final LogDomain logDomain = LogDefinitions.finroc.getSubDomain("tcp");
 
     /**
      * @param port Port Server runs on
@@ -88,7 +84,7 @@ class TCPServer extends FrameworkElement implements org.rrlib.finroc_core_utils.
                 break;
             }
             int nextPort = port + 1;
-            log(LogLevel.USER, logDomain, "Port " + port + " occupied - trying " + nextPort);
+            Log.log(LogLevel.USER, this, "Port " + port + " occupied - trying " + nextPort);
             port++;
         }
 
@@ -101,7 +97,7 @@ class TCPServer extends FrameworkElement implements org.rrlib.finroc_core_utils.
             try {
                 s.close();
             } catch (IOException e) {
-                log(LogLevel.DEBUG_WARNING, logDomain, e);
+                Log.log(LogLevel.DEBUG_WARNING, this, e);
             }
             return;
         }
@@ -109,7 +105,7 @@ class TCPServer extends FrameworkElement implements org.rrlib.finroc_core_utils.
             //@SuppressWarnings("unused")
             //TCPServerConnection connection = new TCPServerConnection(s, firstByte, this, peer); // TODO
         } catch (Exception e) {
-            log(LogLevel.DEBUG_WARNING, logDomain, e);
+            Log.log(LogLevel.DEBUG_WARNING, this, e);
         }
     }
 

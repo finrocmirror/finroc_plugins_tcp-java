@@ -25,7 +25,8 @@ import org.finroc.core.datatype.FrameworkElementInfo;
 import org.finroc.core.plugin.ExternalConnection;
 import org.finroc.plugins.tcp.internal.TCP;
 import org.finroc.plugins.tcp.internal.TCPPeer;
-import org.rrlib.finroc_core_utils.log.LogLevel;
+import org.rrlib.logging.Log;
+import org.rrlib.logging.LogLevel;
 
 /**
  * @author Max Reichardt
@@ -125,7 +126,7 @@ public class Peer extends ExternalConnection {
         try {
             this.disconnect();
         } catch (Exception e) {
-            log(LogLevel.DEBUG_WARNING, logDomain, e);
+            Log.log(LogLevel.DEBUG_WARNING, this, e);
         }
         /*if (tracker != null) {
             tracker.delete();

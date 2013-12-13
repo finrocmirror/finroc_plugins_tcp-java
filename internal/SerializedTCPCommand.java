@@ -23,8 +23,8 @@ package org.finroc.plugins.tcp.internal;
 
 import org.finroc.plugins.tcp.TCPSettings;
 import org.rrlib.finroc_core_utils.jc.container.Queueable;
-import org.rrlib.finroc_core_utils.serialization.MemoryBuffer;
-import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
+import org.rrlib.serialization.BinaryOutputStream;
+import org.rrlib.serialization.MemoryBuffer;
 
 /**
  * @author Max Reichardt
@@ -39,7 +39,7 @@ class SerializedTCPCommand extends Queueable {
     private final MemoryBuffer buffer;
 
     /** Stream for writing to buffer */
-    private final OutputStreamBuffer stream;
+    private final BinaryOutputStream stream;
 
     /** Command's opcode */
     private final TCP.OpCode opcode;
@@ -50,14 +50,14 @@ class SerializedTCPCommand extends Queueable {
      */
     public SerializedTCPCommand(TCP.OpCode opcode, int estimatedSize) {
         buffer = new MemoryBuffer(estimatedSize);
-        stream = new OutputStreamBuffer(buffer);
+        stream = new BinaryOutputStream(buffer);
         this.opcode = opcode;
     }
 
     /**
      * @return Stream for writing to buffer
      */
-    public OutputStreamBuffer getWriteStream() {
+    public BinaryOutputStream getWriteStream() {
         return stream;
     }
 
@@ -66,7 +66,7 @@ class SerializedTCPCommand extends Queueable {
      *
      * @param stream Stream to TCP command to
      */
-    public void serialize(OutputStreamBuffer stream) {
+    public void serialize(BinaryOutputStream stream) {
         this.stream.flush();
         assert(TCP.MESSAGE_SIZES[opcode.ordinal()] != TCP.MessageSize.VARIABLE_UP_TO_255_BYTE);
         //System.out.println("Sending TCP Command " + opcode.toString());

@@ -22,11 +22,10 @@
 package org.finroc.plugins.tcp.internal;
 
 import org.rrlib.finroc_core_utils.jc.container.SimpleList;
-import org.rrlib.finroc_core_utils.jc.log.LogDefinitions;
-import org.rrlib.finroc_core_utils.log.LogDomain;
-import org.rrlib.finroc_core_utils.log.LogLevel;
-import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
-import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
+import org.rrlib.logging.LogDomain;
+import org.rrlib.logging.LogLevel;
+import org.rrlib.serialization.BinaryInputStream;
+import org.rrlib.serialization.BinaryOutputStream;
 
 import org.finroc.core.RuntimeEnvironment;
 import org.finroc.core.port.net.AbstractPeerTracker;

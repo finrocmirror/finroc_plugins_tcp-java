@@ -22,7 +22,7 @@
 package org.finroc.plugins.tcp.internal;
 
 import org.rrlib.finroc_core_utils.jc.GarbageCollector;
-import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
+import org.rrlib.serialization.BinaryOutputStream;
 import org.finroc.core.FrameworkElementFlags;
 import org.finroc.core.RuntimeSettings;
 import org.finroc.core.datatype.Timestamp;
@@ -210,7 +210,7 @@ abstract class TCPPort extends NetPort {
      * @param stream Stream
      * @param changedFlag Current changed flag of port
      */
-    public void writeDataToNetwork(OutputStreamBuffer stream, byte changedFlag) {
+    public void writeDataToNetwork(BinaryOutputStream stream, byte changedFlag) {
 
         boolean useQ = getPort().getFlag(FrameworkElementFlags.USES_QUEUE);
         boolean first = true;

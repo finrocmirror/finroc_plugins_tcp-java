@@ -21,9 +21,9 @@
 //----------------------------------------------------------------------
 package org.finroc.plugins.tcp.internal;
 
-import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
-import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
-import org.rrlib.finroc_core_utils.serialization.RRLibSerializableImpl;
+import org.rrlib.serialization.BinaryInputStream;
+import org.rrlib.serialization.BinaryOutputStream;
+import org.rrlib.serialization.BinarySerializable;
 
 /**
  * @author Max Reichardt
@@ -31,7 +31,7 @@ import org.rrlib.finroc_core_utils.serialization.RRLibSerializableImpl;
  * UUID of TCP peer in network.
  * Currently consists of host name and network port - which seems optimal and simple.
  */
-class UUID extends RRLibSerializableImpl {
+class UUID implements BinarySerializable {
 
     /** Host name */
     public String hostName;
@@ -49,13 +49,13 @@ class UUID extends RRLibSerializableImpl {
     }
 
     @Override
-    public void serialize(OutputStreamBuffer stream) {
+    public void serialize(BinaryOutputStream stream) {
         stream.writeString(hostName);
         stream.writeInt(port);
     }
 
     @Override
-    public void deserialize(InputStreamBuffer stream) {
+    public void deserialize(BinaryInputStream stream) {
         hostName = stream.readString();
         port = stream.readInt();
     }

@@ -36,8 +36,8 @@ import org.finroc.core.plugin.ExternalConnection;
 import org.finroc.core.plugin.Plugin;
 import org.finroc.core.plugin.Plugins;
 import org.finroc.plugins.tcp.Peer;
-import org.rrlib.finroc_core_utils.serialization.InputStreamBuffer;
-import org.rrlib.finroc_core_utils.serialization.OutputStreamBuffer;
+import org.rrlib.serialization.BinaryInputStream;
+import org.rrlib.serialization.BinaryOutputStream;
 
 /**
  * @author Max Reichardt
@@ -157,7 +157,7 @@ public class TCP implements Plugin {
      * @param stream Stream to serialize address to
      * @param address Address to serialize (IPv4 or IPv6)
      */
-    public static void serializeInetAddress(OutputStreamBuffer stream, InetAddress address) {
+    public static void serializeInetAddress(BinaryOutputStream stream, InetAddress address) {
         byte[] rawAddress = address.getAddress();
         stream.writeBoolean(rawAddress.length > 4);
         stream.write(rawAddress);
@@ -168,7 +168,7 @@ public class TCP implements Plugin {
      * @param stream Stream to deserialize from
      * @return Deserialized address
      */
-    public static InetAddress deserializeInetAddress(InputStreamBuffer stream) {
+    public static InetAddress deserializeInetAddress(BinaryInputStream stream) {
         boolean v6 = stream.readBoolean();
         byte[] rawAddress = new byte[v6 ? 16 : 4];
         stream.readFully(rawAddress);
