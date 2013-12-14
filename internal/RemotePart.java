@@ -24,6 +24,7 @@ package org.finroc.plugins.tcp.internal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.finroc.core.FrameworkElement;
@@ -59,7 +60,6 @@ import org.finroc.core.remote.RemotePort;
 import org.finroc.core.remote.RemoteRuntime;
 import org.finroc.core.remote.RemoteTypes;
 import org.finroc.plugins.tcp.internal.TCP.OpCode;
-import org.rrlib.finroc_core_utils.jc.AtomicInt;
 import org.rrlib.logging.Log;
 import org.rrlib.logging.LogLevel;
 import org.rrlib.serialization.BinaryInputStream;
@@ -131,7 +131,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
     private ArrayList<PullCall> pullCallsAwaitingResponse = new ArrayList<PullCall>();
 
     /** Number of times disconnect was called, since last connect */
-    private final AtomicInt disconnectCalls = new AtomicInt(0);
+    private final AtomicInteger disconnectCalls = new AtomicInteger(0);
 
 
     /** Peer info this part is associated with */

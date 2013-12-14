@@ -21,7 +21,6 @@
 //----------------------------------------------------------------------
 package org.finroc.plugins.tcp.internal;
 
-import org.rrlib.finroc_core_utils.jc.container.SimpleList;
 import org.rrlib.logging.LogDomain;
 import org.rrlib.logging.LogLevel;
 import org.rrlib.serialization.BinaryInputStream;

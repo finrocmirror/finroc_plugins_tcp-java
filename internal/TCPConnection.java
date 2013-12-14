@@ -22,8 +22,6 @@
 package org.finroc.plugins.tcp.internal;
 
 
-import org.rrlib.finroc_core_utils.jc.thread.ThreadUtil;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ConnectException;
@@ -234,8 +232,8 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
         String typeString = bulk ? "Bulk" : "Express";
 
         // Initialize them here, so that subscribe calls from structure creation do not get lost
-        reader = ThreadUtil.getThreadSharedPtr(new Reader("TCP Client " + typeString + "-Listener for " + uuid.toString()));
-        writer = ThreadUtil.getThreadSharedPtr(new Writer("TCP Client " + typeString + "-Writer for " + uuid.toString()));
+        reader = new Reader("TCP Client " + typeString + "-Listener for " + uuid.toString());
+        writer = new Writer("TCP Client " + typeString + "-Writer for " + uuid.toString());
 
         // Get framework elements from connection partner
         if ((connectionFlags & TCP.MANAGEMENT_DATA) != 0) {
