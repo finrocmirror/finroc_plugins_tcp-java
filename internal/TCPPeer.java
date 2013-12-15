@@ -34,6 +34,7 @@ import org.rrlib.logging.Log;
 import org.rrlib.logging.LogLevel;
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElement.ChildIterator;
+import org.finroc.core.RuntimeSettings;
 import org.finroc.core.datatype.FrameworkElementInfo;
 import org.finroc.core.plugin.ExternalConnection;
 import org.finroc.core.remote.ModelNode;
@@ -133,22 +134,26 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
         }
         if (peerType == TCP.PeerType.CLIENT_ONLY) {
             // set to negative process id
-            try {
+            if (RuntimeSettings.isRunningInApplet()) {
+                thisPeer.uuid.port = -(((int)System.currentTimeMillis()) & 0x7FFFFFFF);
+            } else {
                 try {
-                    Class<?> managementFactoryClass = Class.forName("java.lang.management.ManagementFactory");
-                    Object bean = managementFactoryClass.getMethod("getRuntimeMXBean").invoke(null);
-                    Method getNameMethod = bean.getClass().getMethod("getName");
-                    getNameMethod.setAccessible(true);
-                    String pid = getNameMethod.invoke(bean).toString();
-                    thisPeer.uuid.port = -Integer.parseInt(pid.substring(0, pid.indexOf("@")));
-                } catch (ClassNotFoundException e) {
-                    // maybe we're on Android (?)
-                    Class<?> processClass = Class.forName("android.os.Process");
-                    thisPeer.uuid.port = (Integer)processClass.getMethod("myPid()").invoke(null);
+                    try {
+                        Class<?> managementFactoryClass = Class.forName("java.lang.management.ManagementFactory");
+                        Object bean = managementFactoryClass.getMethod("getRuntimeMXBean").invoke(null);
+                        Method getNameMethod = bean.getClass().getMethod("getName");
+                        getNameMethod.setAccessible(true);
+                        String pid = getNameMethod.invoke(bean).toString();
+                        thisPeer.uuid.port = -Integer.parseInt(pid.substring(0, pid.indexOf("@")));
+                    } catch (ClassNotFoundException e) {
+                        // maybe we're on Android (?)
+                        Class<?> processClass = Class.forName("android.os.Process");
+                        thisPeer.uuid.port = (Integer)processClass.getMethod("myPid()").invoke(null);
+                    }
+                } catch (Exception e) {
+                    thisPeer.uuid.port = -1;
+                    Log.log(LogLevel.ERROR, this, "Error retrieving process id.", e);
                 }
-            } catch (Exception e) {
-                thisPeer.uuid.port = -1;
-                Log.log(LogLevel.ERROR, this, "Error retrieving process id.", e);
             }
         } else {
             thisPeer.uuid.port = server.getPort();
