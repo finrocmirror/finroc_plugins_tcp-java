@@ -213,7 +213,7 @@ public class TCP implements Plugin {
             this.name = name;
             this.flags = flags;
             Plugins.getInstance().registerExternalConnection(this);
-            this.group = RuntimeSettings.ANDROID_PLATFORM ? "finroc_plugins_tcp" : Plugins.getInstance().getContainingJarFile(TCP.class);
+            this.group = RuntimeSettings.ANDROID_PLATFORM || RuntimeSettings.isRunningInApplet() ? "finroc_plugins_tcp" : Plugins.getInstance().getContainingJarFile(TCP.class);
         }
 
         @Override
