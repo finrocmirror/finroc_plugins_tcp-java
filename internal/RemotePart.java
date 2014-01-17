@@ -179,7 +179,14 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
      */
     void addRemoteStructure(FrameworkElementInfo info, boolean initalStructureExchange) {
         RemoteRuntime remoteRuntime = initalStructureExchange ? newModelNode : currentModelNode;
-        logDomain.log(LogLevel.DEBUG_VERBOSE_1, getLogDescription(), "Adding element: " + info.toString());
+        while (remoteRuntime == null && (!initalStructureExchange)) {
+            remoteRuntime = currentModelNode;
+            //Log.log(LogLevel.DEBUG, this, "Waiting for remote model to become ready");
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {}
+        }
+        //Log.log(LogLevel.DEBUG_VERBOSE_1, this, "Adding element: " + info.toString());
         if (info.isPort()) {
             ProxyPort port = new ProxyPort(info);
             for (int i = 0; i < info.getLinkCount(); i++) {
