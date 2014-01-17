@@ -443,7 +443,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                                 remotePart.processMessage(opCode, stream, remoteTypes, TCPConnection.this);
                                 checkCommandEnd(stream);
                             } catch (Exception e) {
-                                Log.log(LogLevel.WARNING, this, "Failed to deserialize message of type " + opCode.toString() + ". Skipping.");
+                                Log.log(LogLevel.WARNING, this, "Failed to deserialize message of type " + opCode.toString() + ". Skipping. Reason: ", e);
                                 long skip = nextCommandStartPosition - stream.getAbsoluteReadPosition();
                                 if (skip >= 0) {
                                     stream.skip((int)skip);
