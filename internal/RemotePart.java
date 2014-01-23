@@ -180,9 +180,15 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
      */
     void addRemoteStructure(FrameworkElementInfo info, boolean initalStructureExchange) {
         RemoteRuntime remoteRuntime = initalStructureExchange ? newModelNode : currentModelNode;
+        long startTime = 0;
         while (remoteRuntime == null && (!initalStructureExchange)) {
             remoteRuntime = currentModelNode;
             Log.log(LogLevel.DEBUG, this, "Waiting for remote model to become ready");
+            if (startTime == 0) {
+                startTime = System.currentTimeMillis();
+            } else if (System.currentTimeMillis() - startTime > 1000) { // We should not block thread forever (as this blocks GUI interaction in e.g. finstruct)
+                throw new RuntimeException("No model node available");
+            }
             try {
                 Thread.sleep(20);
             } catch (InterruptedException e) {}
