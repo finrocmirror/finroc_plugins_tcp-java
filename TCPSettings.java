@@ -24,8 +24,7 @@ package org.finroc.plugins.tcp;
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.RuntimeSettings;
 import org.finroc.core.datatype.Bounds;
-import org.finroc.core.datatype.Constant;
-import org.finroc.core.datatype.Unit;
+import org.finroc.core.datatype.SIUnit;
 import org.finroc.core.parameter.ParameterNumeric;
 
 /**
@@ -74,13 +73,13 @@ public class TCPSettings extends FrameworkElement {
         new ParameterNumeric<Integer>("Maximum not acknowledged bulk packets", this, 2, new Bounds<Integer>(1, 40, true));
 
     public final ParameterNumeric<Integer> minUpdateIntervalExpress =
-        new ParameterNumeric<Integer>("Minimum Express Update Interval", this, 25, new Bounds<Integer>(1, 2000, Constant.NO_MIN_TIME_LIMIT.getValue()), Unit.ms);
+        new ParameterNumeric<Integer>("Minimum Express Update Interval", this, 25, new Bounds<Integer>(1, 2000), SIUnit.MILLISECOND);
 
     public final ParameterNumeric<Integer> minUpdateIntervalBulk =
-        new ParameterNumeric<Integer>("Minimum Bulk Update Interval", this, 50, new Bounds<Integer>(1, 2000, Constant.NO_MIN_TIME_LIMIT.getValue()), Unit.ms);
+        new ParameterNumeric<Integer>("Minimum Bulk Update Interval", this, 50, new Bounds<Integer>(1, 2000), SIUnit.MILLISECOND);
 
     public final ParameterNumeric<Integer> criticalPingThreshold =
-        new ParameterNumeric<Integer>("Critical Ping Threshold", this, 1500, new Bounds<Integer>(50, 20000, Constant.NO_MAX_TIME_LIMIT.getValue()), Unit.ms);
+        new ParameterNumeric<Integer>("Critical Ping Threshold", this, 1500, new Bounds<Integer>(50, 20000), SIUnit.MILLISECOND);
 
     /** Debug Settings */
     //static final BoolSetting DISPLAY_INCOMING_TCP_SERVER_COMMANDS = inst.add("DISPLAY_INCOMING_TCP_SERVER_COMMANDS", true, true);
