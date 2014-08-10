@@ -1063,7 +1063,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
                 } else if (strategy == -1) {
                     // still disconnected
                 } else if (strategy != subscriptionStrategy || time != subscriptionUpdateTime || revPush != subscriptionRevPush) {
-                    c.subscribe(remoteHandle, strategy, revPush, time, p.getHandle(), getEncoding());
+                    c.subscribe(remoteHandle, strategy, revPush, time, p.getHandle(), getNetworkEncoding());
                     subscriptionStrategy = strategy;
                     subscriptionRevPush = revPush;
                     subscriptionUpdateTime = time;
@@ -1135,7 +1135,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
             super(TCP.OpCode.PULLCALL, 16);
             timeSent = System.currentTimeMillis();
             callId = nextCallId.incrementAndGet();
-            encoding = netport.getEncoding();
+            encoding = netport.getNetworkEncoding();
             getWriteStream().writeInt(netport.getRemoteHandle());
             getWriteStream().writeLong(callId);
             getWriteStream().writeEnum(encoding);

@@ -215,18 +215,22 @@ abstract class TCPPort extends NetPort {
         boolean useQ = getPort().getFlag(FrameworkElementFlags.USES_QUEUE);
         boolean first = true;
 
-        if (isStdType() || isTransactionType() || isUnknownAdaptableType()) {
+        if (isStdType() || isTransactionType() || getRemoteType() != null) {
             stream.writeEnum(TCP.OpCode.PORT_VALUE_CHANGE);
             stream.writeSkipOffsetPlaceholder();
             stream.writeInt(getRemoteHandle());
-            stream.writeEnum(getEncoding());
+            stream.writeEnum(getNetworkEncoding());
 
             StdNetPort pb = (StdNetPort)getPort();
             if (!useQ) {
                 PortDataManager pd = pb.getLockedUnsafeRaw(true);
                 stream.writeByte(changedFlag);
                 pd.getTimestamp().serialize(stream);
-                pd.getObject().serialize(stream, getInternalEncoding());
+                if (getRemoteType() == null) {
+                    pd.getObject().serialize(stream, getNetworkEncoding());
+                } else {
+                    getRemoteType().serialize(pd.getObject());
+                }
                 pd.releaseLock();
             } else {
                 PortQueueFragmentRaw fragment = ThreadLocalCache.getFast().tempFragment;
@@ -239,7 +243,11 @@ abstract class TCPPort extends NetPort {
                     first = false;
                     stream.writeByte(changedFlag);
                     pd.getManager().getTimestamp().serialize(stream);
-                    pd.getData().serialize(stream, getInternalEncoding());
+                    if (getRemoteType() == null) {
+                        pd.getData().serialize(stream, getNetworkEncoding());
+                    } else {
+                        getRemoteType().serialize(pd.getData());
+                    }
                     pd.getManager().releaseLock();
                 }
             }
@@ -252,12 +260,12 @@ abstract class TCPPort extends NetPort {
                 stream.writeEnum(writeTime ? TCP.OpCode.SMALL_PORT_VALUE_CHANGE : TCP.OpCode.SMALL_PORT_VALUE_CHANGE_WITHOUT_TIMESTAMP);
                 stream.writeSkipOffsetPlaceholder(true);
                 stream.writeInt(getRemoteHandle());
-                stream.writeEnum(getEncoding());
+                stream.writeEnum(getNetworkEncoding());
                 stream.writeByte(changedFlag);
                 if (writeTime) {
                     ccitc.getTimestamp().serialize(stream);
                 }
-                ccitc.getObject().serialize(stream, getInternalEncoding());
+                ccitc.getObject().serialize(stream, getNetworkEncoding());
 
                 ccitc.recycle2();
             } else {
@@ -265,7 +273,7 @@ abstract class TCPPort extends NetPort {
                 stream.writeEnum(TCP.OpCode.PORT_VALUE_CHANGE);
                 stream.writeSkipOffsetPlaceholder();
                 stream.writeInt(getRemoteHandle());
-                stream.writeEnum(getEncoding());
+                stream.writeEnum(getNetworkEncoding());
 
                 CCQueueFragmentRaw fragment = ThreadLocalCache.getFast().tempCCFragment;
                 pb.dequeueAllRaw(fragment);
@@ -277,7 +285,7 @@ abstract class TCPPort extends NetPort {
                     first = false;
                     stream.writeByte(changedFlag);
                     pd.getTimestamp().serialize(stream);
-                    pd.getObject().serialize(stream, getInternalEncoding());
+                    pd.getObject().serialize(stream, getNetworkEncoding());
                     pd.recycle2();
                 }
             }
