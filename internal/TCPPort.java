@@ -229,7 +229,7 @@ abstract class TCPPort extends NetPort {
                 if (getRemoteType() == null) {
                     pd.getObject().serialize(stream, getNetworkEncoding());
                 } else {
-                    getRemoteType().serialize(pd.getObject());
+                    getRemoteType().serialize(stream, pd.getObject());
                 }
                 pd.releaseLock();
             } else {
@@ -246,7 +246,7 @@ abstract class TCPPort extends NetPort {
                     if (getRemoteType() == null) {
                         pd.getData().serialize(stream, getNetworkEncoding());
                     } else {
-                        getRemoteType().serialize(pd.getData());
+                        getRemoteType().serialize(stream, pd.getData());
                     }
                     pd.getManager().releaseLock();
                 }
