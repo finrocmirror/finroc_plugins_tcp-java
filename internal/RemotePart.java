@@ -65,6 +65,7 @@ import org.rrlib.logging.LogLevel;
 import org.rrlib.serialization.BinaryInputStream;
 import org.rrlib.serialization.MemoryBuffer;
 import org.rrlib.serialization.Serialization;
+import org.rrlib.serialization.compression.Compressible;
 import org.rrlib.serialization.rtti.DataTypeBase;
 
 /**
@@ -133,6 +134,9 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
     /** Number of times disconnect was called, since last connect */
     private final AtomicInteger disconnectCalls = new AtomicInteger(0);
 
+    /** Has remote part compression support? */
+    private boolean hasCompressionSupport = false;
+
 
     /** Peer info this part is associated with */
     RemotePart(PeerInfo peerInfo, FrameworkElement parent, TCPPeer peerImplementation) {
@@ -195,6 +199,9 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
         }
         Log.log(LogLevel.DEBUG_VERBOSE_1, this, "Adding element: " + info.toString());
         if (info.isPort()) {
+            if ((!hasCompressionSupport) && info.getDataType().getName().equals("finroc.data_compression.CompressionRules")) {
+                hasCompressionSupport = true;
+            }
             ProxyPort port = new ProxyPort(info);
             for (int i = 0; i < info.getLinkCount(); i++) {
                 RemoteFrameworkElement remoteElement = new RemotePort(info.getHandle(), info.getLink(i).name, port.getPort(), i);
@@ -1056,6 +1063,7 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
                     subscriptionRevPush = false;
                     subscriptionUpdateTime = -1;
                 } else if (strategy == -1 && subscriptionStrategy > -1) { // disconnect
+                    //System.out.println("Unsubscribing " + (((long)remoteHandle) + (1L << 32L)) + " " + getPort().getQualifiedName());
                     c.unsubscribe(remoteHandle);
                     subscriptionStrategy = -1;
                     subscriptionRevPush = false;
@@ -1063,7 +1071,11 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
                 } else if (strategy == -1) {
                     // still disconnected
                 } else if (strategy != subscriptionStrategy || time != subscriptionUpdateTime || revPush != subscriptionRevPush) {
-                    c.subscribe(remoteHandle, strategy, revPush, time, p.getHandle(), getNetworkEncoding());
+                    boolean requestCompressedData = hasCompressionSupport && getNetworkEncoding() == Serialization.DataEncoding.BINARY && (!peerInfo.uuid.hostName.equals(peerImplementation.thisPeer.uuid)) &&
+                                                    isStdType() && getPort().getDataType().getJavaClass() != null && Compressible.class.isAssignableFrom(getPort().getDataType().getJavaClass());
+
+                    c.subscribe(remoteHandle, strategy, revPush, time, p.getHandle(), requestCompressedData ? Serialization.DataEncoding.BINARY_COMPRESSED : getNetworkEncoding());
+                    //c.subscribe(remoteHandle, strategy, revPush, time, p.getHandle(), getNetworkEncoding());
                     subscriptionStrategy = strategy;
                     subscriptionRevPush = revPush;
                     subscriptionUpdateTime = time;
