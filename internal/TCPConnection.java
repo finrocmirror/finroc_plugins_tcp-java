@@ -22,6 +22,7 @@
 package org.finroc.plugins.tcp.internal;
 
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ConnectException;
@@ -285,7 +286,11 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                 }
                 // remotePart.initAndCheckForAdminPort(modelNode); do this later: after bulk connection has been initialized
             } catch (Exception e) {
-                Log.log(LogLevel.DEBUG_WARNING, this, uuid.toString(), e);
+                if (e.getCause() instanceof EOFException) {
+                    Log.log(LogLevel.DEBUG, "Connection partner '" + uuid.toString() + "' rejected connection (probably not ready yet). Trying again later.");
+                } else {
+                    Log.log(LogLevel.DEBUG_WARNING, this, uuid.toString(), e);
+                }
                 //peer.connectionElement.getModelHandler().removeNode(statusNode);
                 remotePart.removeConnection(this);
                 throw e;
