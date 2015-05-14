@@ -1094,6 +1094,9 @@ public class RemotePart extends FrameworkElement implements PullRequestHandler, 
                 }
             }
             int numberOfReverseConnections = 0;
+            if (getExtraEdgeProvider() != null) {
+                numberOfReverseConnections = getExtraEdgeProvider().getRemoteEdgeDestinations(result);
+            }
             for (FrameworkElementInfo.NetworkConnection connection : networkConnections) {
                 AbstractPort port = connection.getDestinationPort(currentModelNode);
                 if (port != null) {
