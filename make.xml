@@ -1,5 +1,5 @@
 <targets>
-  <finrocplugin plugin-class="org.finroc.plugins.tcp.internal.TCP">
+  <library plugin-class="org.finroc.plugins.tcp.internal.TCP">
     <sources>**.java</sources>
-  </finrocplugin>
+  </library>
 </targets>
