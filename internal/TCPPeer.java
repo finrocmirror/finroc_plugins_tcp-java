@@ -708,16 +708,18 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             Socket socket = new Socket();
             try {
                 socket.connect(connectTo);
-                new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
+                TCPConnection connection1 = new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
                 //new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, true, modelNode);
                 socket = new Socket();
                 socket.connect(connectTo);
                 //new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
-                new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, true, modelNode);
+                TCPConnection connection2 = new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, true, modelNode);
                 peerInfo = findPeerInfoFor(connectTo);
                 peerInfo.remotePart.initAndCheckForAdminPort(modelNode);
                 stopThread();
                 peerInfo.connecting = false;
+                connection1.StartThreads();
+                connection2.StartThreads();
             } catch (Exception e) {
                 peerInfo = findPeerInfoFor(connectTo);
                 if (peerInfo != null && peerInfo.remotePart != null) {
@@ -766,20 +768,29 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                 InetSocketAddress socketAddress = new InetSocketAddress(address, peer.uuid.port);
                 Socket socket = new Socket();
                 try {
+                    TCPConnection connection1 = null, connection2 = null;
                     if (peer.remotePart == null || peer.remotePart.bulkConnection == null) {
                         socket.connect(socketAddress);
                         //new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, false, modelNode);
-                        new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
+                        connection1 = new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
                     }
                     if (peer.remotePart == null || peer.remotePart.managementConnection == null) {
                         socket = new Socket();
                         socket.connect(socketAddress);
                         //new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
-                        new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, false, modelNode);
+                        connection2 = new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, false, modelNode);
                     }
-                    peer.connecting = false;
                     peer.remotePart.initAndCheckForAdminPort(modelNode);
                     stopThread();
+                    peer.connecting = false;
+                    if (connection1 != null) {
+                        connection1.StartThreads();
+                    }
+                    if (connection2 != null) {
+                        connection2.StartThreads();
+                    }
+                } catch (NullPointerException e) {
+                    e.printStackTrace();
                 } catch (Exception e) {
                     if (peer.remotePart != null) {
                         peer.remotePart.deleteAllChildren();

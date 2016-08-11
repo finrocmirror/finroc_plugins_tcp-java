@@ -296,8 +296,9 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
             writeBufferToNetwork();
         }
         //RuntimeSettings.getInstance().addUpdateTimeChangeListener(this);
+    }
 
-        // start threads
+    void StartThreads() {
         reader.start();
         writer.start();
     }
