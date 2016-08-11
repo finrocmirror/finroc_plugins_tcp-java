@@ -57,7 +57,7 @@ class PeerInfo {
     public ArrayList<InetAddress> addresses = new ArrayList<InetAddress>();
 
     /** Are we currently connected with this peer? */
-    public boolean connected;
+    public volatile boolean connected;
 
     /** True, if there are ongoing attempts to connect to this peer */
     public volatile boolean connecting;
