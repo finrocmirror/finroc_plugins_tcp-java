@@ -706,14 +706,15 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             }
 
             Socket socket = new Socket();
+            TCPConnection connection1 = null, connection2 = null;
             try {
                 socket.connect(connectTo);
-                TCPConnection connection1 = new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
+                connection1 = new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
                 //new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, true, modelNode);
                 socket = new Socket();
                 socket.connect(connectTo);
                 //new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
-                TCPConnection connection2 = new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, true, modelNode);
+                connection2 = new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, true, modelNode);
                 peerInfo = findPeerInfoFor(connectTo);
                 peerInfo.remotePart.initAndCheckForAdminPort(modelNode);
                 stopThread();
@@ -721,6 +722,12 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                 connection1.StartThreads();
                 connection2.StartThreads();
             } catch (Exception e) {
+                if (connection1 != null) {
+                    connection1.disconnect();
+                }
+                if (connection2 != null) {
+                    connection2.disconnect();
+                }
                 peerInfo = findPeerInfoFor(connectTo);
                 if (peerInfo != null && peerInfo.remotePart != null) {
                     peerInfo.remotePart.deleteAllChildren();
@@ -767,8 +774,8 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             for (InetAddress address : peer.addresses) {
                 InetSocketAddress socketAddress = new InetSocketAddress(address, peer.uuid.port);
                 Socket socket = new Socket();
+                TCPConnection connection1 = null, connection2 = null;
                 try {
-                    TCPConnection connection1 = null, connection2 = null;
                     if (peer.remotePart == null || peer.remotePart.bulkConnection == null) {
                         socket.connect(socketAddress);
                         //new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, false, modelNode);
@@ -791,7 +798,20 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                     }
                 } catch (NullPointerException e) {
                     e.printStackTrace();
+                    if (connection1 != null) {
+                        connection1.disconnect();
+                    }
+                    if (connection2 != null) {
+                        connection2.disconnect();
+                    }
                 } catch (Exception e) {
+                    if (connection1 != null) {
+                        connection1.disconnect();
+                    }
+                    if (connection2 != null) {
+                        connection2.disconnect();
+                    }
+
                     if (peer.remotePart != null) {
                         peer.remotePart.deleteAllChildren();
                     }
