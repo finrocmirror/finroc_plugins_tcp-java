@@ -35,8 +35,9 @@ import org.rrlib.logging.LogLevel;
 import org.finroc.core.FrameworkElement;
 import org.finroc.core.FrameworkElement.ChildIterator;
 import org.finroc.core.RuntimeSettings;
-import org.finroc.core.datatype.FrameworkElementInfo;
 import org.finroc.core.plugin.ExternalConnection;
+import org.finroc.core.remote.BufferedModelChanges;
+import org.finroc.core.remote.Definitions;
 import org.finroc.core.remote.ModelNode;
 import org.finroc.plugins.tcp.internal.TCP.PeerType;
 
@@ -69,7 +70,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
     final PeerInfo thisPeer;
 
     /** Amount of structure this client is interested in */
-    final FrameworkElementInfo.StructureExchange structureExchange;
+    final Definitions.StructureExchange structureExchange;
 
     /**
      * List of network peers that can be connected to
@@ -114,7 +115,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
      * @param autoConnectToAllPeers Auto-connect to all peers that become known?
      * @param serverListenAddress The address that server is supposed to listen on ("" will enable IPv6)
      */
-    public TCPPeer(ExternalConnection frameworkElement, String peerName, TCP.PeerType peerType, FrameworkElementInfo.StructureExchange structureExchange, String networkConnection,
+    public TCPPeer(ExternalConnection frameworkElement, String peerName, TCP.PeerType peerType, Definitions.StructureExchange structureExchange, String networkConnection,
                    int preferredServerPort, boolean tryNextPortsIfOccupied, boolean autoConnectToAllPeers, String serverListenAddress) {
         this.connectionElement = frameworkElement;
         thisPeer = new PeerInfo(peerType);
@@ -243,7 +244,9 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             assert(connectionElement.isReady());
             activelyConnect = true;
             modelRootNode = new ModelNode("TCP");
-            connectionElement.getModelHandler().setModelRoot(modelRootNode);
+            BufferedModelChanges changes = new BufferedModelChanges();
+            changes.setModelRoot(modelRootNode);
+            connectionElement.getModelHandler().applyModelChanges(changes);
 
             if (address.length() > 0) {
                 int idx = address.lastIndexOf(":");
@@ -367,7 +370,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
         for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
             if (fe instanceof RemotePart && fe.isReady()) {
                 RemotePart rs = (RemotePart)fe;
-                if (!rs.peerInfo.connected) {
+                if (!rs.isConnected()) {
                     return 0;
                 }
                 worst = Math.min(worst, rs.getConnectionQuality());
@@ -387,7 +390,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             for (FrameworkElement fe = ci.next(); fe != null; fe = ci.next()) {
                 if (fe instanceof RemotePart && fe.isReady()) {
                     RemotePart rs = (RemotePart)fe;
-                    if (!rs.peerInfo.connected) {
+                    if (!rs.isConnected()) {
                         continue;
                     }
                     String tmp = rs.peerInfo.uuid.toString();
@@ -410,7 +413,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
      * @return Is this a connection/client used for administration?
      */
     public boolean isAdminConnection() {
-        return structureExchange == FrameworkElementInfo.StructureExchange.FINSTRUCT;
+        return structureExchange == Definitions.StructureExchange.FINSTRUCT;
     }
 
     /**
@@ -444,9 +447,10 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
      * @param peerName Name of peer. Will be displayed in tooling and status messages. Does not need to be unique. Typically the program/process name.
      * @param address IP address of remote part
      * @param neverForget Is this a remote peer to never forget?
+     * @param partnerHandleStampWidth Stamp Width of partner's framework element handles
      * @return Pointer to remote part
      */
-    public RemotePart getRemotePart(UUID uuid, TCP.PeerType peerType, String peerName, InetAddress address, boolean neverForget) throws Exception {
+    public RemotePart getRemotePart(UUID uuid, TCP.PeerType peerType, String peerName, InetAddress address, boolean neverForget, int partnerHandleStampWidth) throws Exception {
         synchronized (connectTo) {
             if (uuid.equals(this.thisPeer.uuid)) {
                 Log.log(LogLevel.ERROR, this, "Remote part has the same UUID as this one: " + uuid.toString());
@@ -456,7 +460,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             for (PeerInfo info : otherPeers) {
                 if (uuid.equals(info.uuid)) {
                     if (info.remotePart == null) {
-                        info.remotePart = new RemotePart(info, connectionElement, this);
+                        info.remotePart = new RemotePart(info, connectionElement, this, partnerHandleStampWidth);
                         info.remotePart.init();
                     }
                     info.neverForget |= neverForget;
@@ -474,7 +478,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             info.uuid = uuid;
             info.name = peerName;
             info.neverForget = neverForget;
-            info.remotePart = new RemotePart(info, connectionElement, this);
+            info.remotePart = new RemotePart(info, connectionElement, this, partnerHandleStampWidth);
             info.remotePart.init();
             return info.remotePart;
         }
@@ -510,7 +514,9 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             e.printStackTrace();
         }
         if (modelRootNode != null) {
-            connectionElement.getModelHandler().removeNode(modelRootNode);
+            BufferedModelChanges changes = new BufferedModelChanges();
+            changes.removeNode(modelRootNode);
+            connectionElement.getModelHandler().applyModelChanges(changes);
         }
         modelRootNode = null;
     }
@@ -521,7 +527,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
      * @param peer the peer to serialize
      */
     private void serializePeerInfo(BinaryOutputStream stream, PeerInfo peer) {
-        if ((peer == thisPeer || peer.connected) && peer.peerType != TCP.PeerType.CLIENT_ONLY) {
+        if ((peer == thisPeer || peer.isConnected()) && peer.peerType != TCP.PeerType.CLIENT_ONLY) {
             stream.writeBoolean(true);
 
             peer.uuid.serialize(stream);
@@ -665,7 +671,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                     connectTo.clear();
 
                     for (PeerInfo info : otherPeers) {
-                        if ((!info.connected) && (!info.connecting) && (info.peerType != PeerType.CLIENT_ONLY)) {
+                        if ((!info.isConnected()) && (!info.connecting) && (info.peerType != PeerType.CLIENT_ONLY)) {
                             new PeerConnectorThread(info).start();
                         }
                     }
@@ -688,7 +694,9 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             setName("ConnectorThread " + TCP.formatInetSocketAddress(connectTo));
             this.connectTo = connectTo;
             modelNode = new ModelNode("Looking for " + TCP.formatInetSocketAddress(connectTo) + "...");
-            connectionElement.getModelHandler().addNode(modelRootNode, modelNode);
+            BufferedModelChanges changes = new BufferedModelChanges();
+            changes.addNode(modelRootNode, modelNode);
+            connectionElement.getModelHandler().applyModelChanges(changes);
         }
 
         @Override
@@ -697,7 +705,9 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             if ((!activelyConnect) || (peerInfo != null)) {
                 stopThread();
                 if (modelRootNode != null) {
-                    connectionElement.getModelHandler().removeNode(modelNode);
+                    BufferedModelChanges changes = new BufferedModelChanges();
+                    changes.removeNode(modelNode);
+                    connectionElement.getModelHandler().applyModelChanges(changes);
                 }
                 if (peerInfo != null) {
                     peerInfo.connecting = false;
@@ -709,12 +719,12 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             TCPConnection connection1 = null, connection2 = null;
             try {
                 socket.connect(connectTo);
-                connection1 = new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
+                connection1 = new TCPConnection(TCPPeer.this, socket, TCP.PRIMARY_CONNECTION | TCP.BULK_DATA, false, modelNode);
                 //new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, true, modelNode);
                 socket = new Socket();
                 socket.connect(connectTo);
                 //new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
-                connection2 = new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, true, modelNode);
+                connection2 = new TCPConnection(TCPPeer.this, socket, TCP.EXPRESS_DATA, true, modelNode);
                 peerInfo = findPeerInfoFor(connectTo);
                 peerInfo.remotePart.initAndCheckForAdminPort(modelNode);
                 stopThread();
@@ -732,8 +742,10 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                 if (peerInfo != null && peerInfo.remotePart != null) {
                     peerInfo.remotePart.deleteAllChildren();
                 }
-                connectionElement.getModelHandler().changeNodeName(modelNode, "Looking for " + TCP.formatInetSocketAddress(connectTo) + "...");
-                //e.printStackTrace();
+                BufferedModelChanges changes = new BufferedModelChanges();
+                changes.changeNodeName(modelNode, "Looking for " + TCP.formatInetSocketAddress(connectTo) + "...");
+                connectionElement.getModelHandler().applyModelChanges(changes);
+                e.printStackTrace();
                 socket.close();
                 // simply try again
             }
@@ -755,15 +767,19 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
             this.peer = peer;
             peer.connecting = true;
             modelNode = new ModelNode("Looking for " + peer.uuid.toString() + "...");
-            connectionElement.getModelHandler().addNode(modelRootNode, modelNode);
+            BufferedModelChanges changes = new BufferedModelChanges();
+            changes.addNode(modelRootNode, modelNode);
+            connectionElement.getModelHandler().applyModelChanges(changes);
         }
 
         @Override
         public void mainLoopCallback() throws Exception {
-            if ((!activelyConnect) || peer.connected) {
+            if ((!activelyConnect) || peer.isConnected()) {
                 stopThread();
                 if (modelRootNode != null) {
-                    connectionElement.getModelHandler().removeNode(modelNode);
+                    BufferedModelChanges changes = new BufferedModelChanges();
+                    changes.removeNode(modelNode);
+                    connectionElement.getModelHandler().applyModelChanges(changes);
                 }
                 peer.connecting = false;
                 return;
@@ -776,16 +792,21 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                 Socket socket = new Socket();
                 TCPConnection connection1 = null, connection2 = null;
                 try {
-                    if (peer.remotePart == null || peer.remotePart.bulkConnection == null) {
+                    RemotePart remotePart = peer.remotePart;
+                    if (remotePart != null && (!remotePart.isConnected())) {
+                        continue; // disconnecting - wait
+                    }
+
+                    if (remotePart == null || remotePart.getPrimaryConnection() == null) {
                         socket.connect(socketAddress);
                         //new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, false, modelNode);
-                        connection1 = new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
+                        connection1 = new TCPConnection(TCPPeer.this, socket, TCP.PRIMARY_CONNECTION | TCP.BULK_DATA, false, modelNode);
                     }
-                    if (peer.remotePart == null || peer.remotePart.managementConnection == null) {
+                    if (peer.remotePart == null || peer.remotePart.getExpressConnection() == null) {
                         socket = new Socket();
                         socket.connect(socketAddress);
                         //new TCPConnection(TCPPeer.this, socket, TCP.BULK_DATA, false, modelNode);
-                        connection2 = new TCPConnection(TCPPeer.this, socket, TCP.MANAGEMENT_DATA | TCP.EXPRESS_DATA, false, modelNode);
+                        connection2 = new TCPConnection(TCPPeer.this, socket, TCP.EXPRESS_DATA, false, modelNode);
                     }
                     peer.remotePart.initAndCheckForAdminPort(modelNode);
                     stopThread();
@@ -815,7 +836,9 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                     if (peer.remotePart != null) {
                         peer.remotePart.deleteAllChildren();
                     }
-                    connectionElement.getModelHandler().changeNodeName(modelNode, "Looking for " + peer.uuid.toString() + "...");
+                    BufferedModelChanges changes = new BufferedModelChanges();
+                    changes.changeNodeName(modelNode, "Looking for " + peer.uuid.toString() + "...");
+                    connectionElement.getModelHandler().applyModelChanges(changes);
                     socket.close();
                     // simply try again
                 }

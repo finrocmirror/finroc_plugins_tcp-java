@@ -49,12 +49,6 @@ public class TCPSettings extends FrameworkElement {
     /** Size of dequeue queue in TCP Port */
     public static final int DEQUEUE_QUEUE_SIZE = 50;
 
-    /** Maximum not acknowledged Packet */
-    public static final int MAX_NOT_ACKNOWLEDGED_PACKETS = 0x1F; // 32 (2^x for fast modulo)
-
-    /** Packets considered when calculating avergage ping time */
-    public static final int AVG_PING_PACKETS = 0x7; // 8 (2^x for fast modulo)
-
     /** Help for debugging: insert checks in data stream => more bandwidth */
     public static final boolean DEBUG_TCP = true;
 

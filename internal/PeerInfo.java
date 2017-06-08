@@ -56,9 +56,6 @@ class PeerInfo {
      */
     public ArrayList<InetAddress> addresses = new ArrayList<InetAddress>();
 
-    /** Are we currently connected with this peer? */
-    public volatile boolean connected;
-
     /** True, if there are ongoing attempts to connect to this peer */
     public volatile boolean connecting;
 
@@ -85,6 +82,11 @@ class PeerInfo {
     /** Host name of peer */
     public String hostname() {
         return uuid.hostName;
+    }
+
+    /** Whether there is currently a connection to this peer */
+    public boolean isConnected() {
+        return remotePart != null && remotePart.isConnected();
     }
 
     public String toString() {

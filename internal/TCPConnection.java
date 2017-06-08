@@ -34,9 +34,6 @@ import java.util.ArrayList;
 import org.rrlib.finroc_core_utils.jc.ArrayWrapper;
 import org.rrlib.finroc_core_utils.jc.AtomicDoubleInt;
 import org.rrlib.finroc_core_utils.jc.HasDestructor;
-import org.rrlib.finroc_core_utils.jc.MutexLockOrder;
-import org.rrlib.finroc_core_utils.jc.Time;
-import org.rrlib.finroc_core_utils.jc.container.SafeConcurrentlyIterableList;
 import org.rrlib.finroc_core_utils.jc.container.WonderQueue;
 import org.rrlib.logging.Log;
 import org.rrlib.logging.LogLevel;
@@ -44,26 +41,24 @@ import org.rrlib.serialization.BinaryInputStream;
 import org.rrlib.serialization.BinaryOutputStream;
 import org.rrlib.serialization.InputStreamSource;
 import org.rrlib.serialization.MemoryBuffer;
-import org.rrlib.serialization.Serialization;
+import org.rrlib.serialization.SerializationInfo;
 import org.rrlib.serialization.rtti.DataTypeBase;
 
-import org.finroc.core.LockOrderLevels;
-import org.finroc.core.RuntimeEnvironment;
-import org.finroc.core.RuntimeSettings;
 import org.finroc.core.datatype.CoreString;
-import org.finroc.core.datatype.FrameworkElementInfo;
-import org.finroc.core.parameter.ParameterNumeric;
+import org.finroc.core.net.generic_protocol.Connection;
+import org.finroc.core.net.generic_protocol.Definitions;
+import org.finroc.core.net.generic_protocol.RemoteProxyPort;
+import org.finroc.core.net.generic_protocol.SerializedMessage;
 import org.finroc.core.port.AbstractPort;
 import org.finroc.core.port.ThreadLocalCache;
-import org.finroc.core.port.net.UpdateTimeChangeListener;
 import org.finroc.core.port.rpc.FutureStatus;
 import org.finroc.core.port.rpc.internal.AbstractCall;
-import org.finroc.core.port.rpc.internal.ResponseSender;
+import org.finroc.core.remote.BufferedModelChanges;
+import org.finroc.core.remote.ModelHandler;
 import org.finroc.core.remote.ModelNode;
-import org.finroc.core.remote.RemoteTypes;
+import org.finroc.core.remote.RemoteType;
 import org.finroc.core.thread.CoreLoopThreadBase;
 import org.finroc.plugins.tcp.TCPSettings;
-import org.finroc.plugins.tcp.internal.TCP.OpCode;
 
 /**
  * @author Max Reichardt
@@ -72,28 +67,13 @@ import org.finroc.plugins.tcp.internal.TCP.OpCode;
  *
  * (writer and listener members need to be initialized by subclass)
  */
-class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
+public class TCPConnection extends Connection {
 
     /** Network Socket used for accessing remote Server */
     private final Socket socket;
 
-    /** default connection times of connection partner */
-    final RemoteTypes remoteTypes = new RemoteTypes();
-
     /** Socket's output stream */
     private final OutputStream socketOutputStream;
-
-    /** Buffer for writing data to stream */
-    private final MemoryBuffer writeBuffer = new MemoryBuffer(MemoryBuffer.DEFAULT_SIZE, MemoryBuffer.DEFAULT_RESIZE_FACTOR, false);
-
-    /** Output Stream for sending data to remote Server */
-    private final BinaryOutputStream writeBufferStream = new BinaryOutputStream(writeBuffer, remoteTypes);
-
-    /** Input Stream for receiving data ro remote Server */
-    private final BinaryInputStream readBufferStream;
-
-    /** Reference to remote part this connection belongs to */
-    private final RemotePart remotePart;
 
     /** Writer Thread */
     private Writer writer;
@@ -101,58 +81,14 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
     /** Reader Thread */
     private Reader reader;
 
-    /** List with calls that wait for a response */
-    final ArrayList<CallAndTimeout> callsAwaitingResponse = new ArrayList<CallAndTimeout>();
-
-    /** References to Connection parameters */
-    private ParameterNumeric<Integer> minUpdateInterval;
-    private ParameterNumeric<Integer> maxNotAcknowledgedPackets;
-
-    /** Index of last acknowledged sent packet */
-    private volatile int lastAcknowledgedPacket = 0;
-
-    /** Index of last acknowledgement request that was received */
-    private volatile int lastAckRequestIndex = 0;
-
-    /** Timestamp of when packet n was sent (Index is n % MAX_NOT_ACKNOWLEDGED_PACKETS => efficient and safe implementation (ring queue)) */
-    private final long[] sentPacketTime = new long[TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS + 1];
-
-    /** Ping time for last packages (Index is n % AVG_PING_PACKETS => efficient and safe implementation (ring queue)) */
-    private final int[] pingTimes = new int[TCPSettings.AVG_PING_PACKETS + 1];
-
-    /** Ping time statistics */
-    private volatile int avgPingTime, maxPingTime;
-
-    /** Signal for disconnecting */
-    private volatile boolean disconnectSignal = false;
-
-    /** Connection type - BULK or EXPRESS */
-    protected final boolean bulk;
-
-    /** Ports that are monitored for changes by this connection and should be checked for modifications */
-    protected SafeConcurrentlyIterableList<TCPPort> monitoredPorts = new SafeConcurrentlyIterableList<TCPPort>(50, 4);
-
     /** TCPPeer that this connection belongs to (null if it does not belong to a peer) */
     protected final TCPPeer peer;
 
     /** Last version of peer information that was sent to connection partner */
     protected int lastPeerInfoSentRevision = -1;
 
-    /** Rx related: last time RX was retrieved */
-    protected long lastRxTimestamp = 0;
-
-    /** Rx related: last time RX was retrieved: how much have we received in total? */
-    protected long lastRxPosition = 0;
-
-    /** Needs to be locked after framework elements, but before runtime registry */
-    public final MutexLockOrder objMutex = new MutexLockOrder(LockOrderLevels.REMOTE + 1);
-
-    /** Log description for connection */
-    protected String description;
-
-    /** Temporary buffer with port information */
-    private final FrameworkElementInfo tempFrameworkElementInfo = new FrameworkElementInfo();
-
+    /** Whether connection has been disconnected - or is disconnected */
+    private volatile boolean disconnected = false;
 
     /**
      * Initializes connection
@@ -168,23 +104,21 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
         this.peer = peer;
         this.socket = socket;
         this.socketOutputStream = socket.getOutputStream();
-        this.readBufferStream = new BinaryInputStream(new InputStreamSource(socket.getInputStream()), remoteTypes);
+        this.readBufferStream = new BinaryInputStream(new InputStreamSource(socket.getInputStream()), INITIAL_SERIALIZATION_INFO);
 
         // Initialize connection
         // Write...
         writeBufferStream.writeString(TCP.GREET_MESSAGE);
-        writeBufferStream.writeShort(TCP.PROTOCOL_VERSION);
+        writeBufferStream.writeShort(Definitions.PROTOCOL_VERSION_MAJOR);
         writeBufferStream.writeSkipOffsetPlaceholder();
         // ConnectionInitMessage
         peer.thisPeer.uuid.serialize(writeBufferStream);
         writeBufferStream.writeEnum(peer.thisPeer.peerType);
         writeBufferStream.writeString(peer.thisPeer.name);
         writeBufferStream.writeEnum(peer.structureExchange);
-        writeBufferStream.writeInt((connectionFlags & TCP.BULK_DATA) != 0 ? TCP.BULK_DATA : (TCP.EXPRESS_DATA | TCP.MANAGEMENT_DATA));
+        writeBufferStream.writeInt(((connectionFlags & TCP.PRIMARY_CONNECTION) != 0 ? (TCP.BULK_DATA | TCP.PRIMARY_CONNECTION) : TCP.EXPRESS_DATA) | TCP.JAVA_PEER | (Definitions.PROTOCOL_VERSION_MINOR << 16));
         TCP.serializeInetAddress(writeBufferStream, socket.getInetAddress());
-        if (TCPSettings.DEBUG_TCP) {
-            writeBufferStream.writeByte(TCP.DEBUG_TCP_NUMBER);
-        }
+        writeBufferStream.writeByte(Definitions.DEBUG_TCP_NUMBER);
         writeBufferStream.skipTargetHere();
         writeBufferToNetwork();
 
@@ -196,7 +130,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
             Log.log(LogLevel.WARNING, this, "Connection partner does not speak Finroc protocol");
             throw new ConnectException("Partner does not speak Finroc protocol");
         }
-        if (readBufferStream.readShort() != TCP.PROTOCOL_VERSION) {
+        if (readBufferStream.readShort() != Definitions.PROTOCOL_VERSION_MAJOR) {
             Log.log(LogLevel.WARNING, this, "Connection partner has wrong protocol version");
             throw new ConnectException("Partner has wrong protocol version");
         }
@@ -205,50 +139,83 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
         uuid.deserialize(readBufferStream);
         TCP.PeerType peerType = readBufferStream.readEnum(TCP.PeerType.class);
         String peerName = readBufferStream.readString();
-        FrameworkElementInfo.StructureExchange structureExchange = readBufferStream.readEnum(FrameworkElementInfo.StructureExchange.class); // TODO: send structure
-        connectionFlags |= readBufferStream.readInt();
-        this.bulk = (connectionFlags & TCP.BULK_DATA) != 0;
+        Definitions.StructureExchange structureExchange = readBufferStream.readEnum(Definitions.StructureExchange.class); // TODO: send structure
+        int flags = readBufferStream.readInt();
+        int partnerFlags = flags & 0xFF;
+        int partnerSerializationRevision = flags >> 16;
+        boolean legacyPartnerRuntime = partnerSerializationRevision == 0;
+        int partnerHandleStampWidth = legacyPartnerRuntime ? 12 : ((flags >> 8) & 0xFF);
+        connectionFlags |= partnerFlags;
+        this.primary = (connectionFlags & TCP.PRIMARY_CONNECTION) != 0;
         InetAddress myAddress = TCP.deserializeInetAddress(readBufferStream);
-        checkCommandEnd(readBufferStream);
+        boolean debugTcp = legacyPartnerRuntime || (!((connectionFlags & TCP.NO_DEBUG) != 0 || (flags & TCP.NO_DEBUG) != 0));
+        checkCommandEnd(readBufferStream);  // requires serialization info to bet set up
 
         // Adjust peer management information
         synchronized (peer.connectTo) {
             peer.addOwnAddress(myAddress);
-            remotePart = peer.getRemotePart(uuid, peerType, peerName, socket.getInetAddress(), neverForget);
-            remotePart.peerInfo.connecting = true;
-            if (!remotePart.addConnection(this)) {
+            remoteRuntime = peer.getRemotePart(uuid, peerType, peerName, socket.getInetAddress(), neverForget, partnerHandleStampWidth);
+            ((RemotePart)remoteRuntime).peerInfo.connecting = true;
+            if (!remoteRuntime.addConnection(this)) {
                 throw new ConnectException("Connection already established. Closing.");
-            }
-            if (peer.thisPeer.peerType != TCP.PeerType.CLIENT_ONLY) {
-                remotePart.setDesiredStructureInfo(structureExchange);
             }
         }
 
+        // Setup serialization info
+        int otherSerializationFlags = structureExchange.ordinal() | (debugTcp ? Definitions.INFO_FLAG_DEBUG_PROTOCOL : 0);
+        int otherDeserializationFlags = peer.structureExchange.ordinal() | Definitions.INFO_FLAG_JAVA_CLIENT | (debugTcp ? Definitions.INFO_FLAG_DEBUG_PROTOCOL : 0);
+        boolean javaPartner = (partnerFlags & TCP.JAVA_PEER) != 0;
+        boolean primaryConnection = (partnerFlags & TCP.PRIMARY_CONNECTION) != 0;
+        boolean expressOnlyConnection = (partnerFlags & TCP.EXPRESS_DATA) != 0 && (!primaryConnection) || (connectionFlags & TCP.EXPRESS_DATA) != 0;
+        if (legacyPartnerRuntime) {
+            SerializationInfo legacySerialization = new SerializationInfo(0, INITIAL_SERIALIZATION_INFO.getRegisterEntryEncodings(), otherSerializationFlags);
+            writeBufferStream.setSerializationTarget(legacySerialization);
+            SerializationInfo legacyDeserialization = new SerializationInfo(0, INITIAL_SERIALIZATION_INFO.getRegisterEntryEncodings(), otherDeserializationFlags);
+            readBufferStream.setSerializationSource(legacyDeserialization);
+        } else if (expressOnlyConnection) {
+            writeBufferStream.setSharedSerializationInfo(remoteRuntime.getPrimaryConnection().getWriteBufferStream());
+            readBufferStream.setSharedSerializationInfo(remoteRuntime.getPrimaryConnection().getReadBufferStream());
+        } else {
+            int revision = Math.min(Definitions.PROTOCOL_VERSION_MINOR, partnerSerializationRevision);
+            int writeEncoding = INITIAL_SERIALIZATION_INFO.getRegisterEntryEncodings();
+            int javaEncoding = SerializationInfo.setRegisterEntryEncoding(SerializationInfo.setDefaultRegisterEntryEncoding(SerializationInfo.RegisterEntryEncoding.PUBLISH_REGISTER_ON_CHANGE, Definitions.RegisterUIDs.values().length), Definitions.RegisterUIDs.CREATE_ACTION.ordinal(), SerializationInfo.RegisterEntryEncoding.PUBLISH_REGISTER_ON_DEMAND);
+            if (javaPartner) {
+                writeEncoding = javaEncoding;
+                otherSerializationFlags |= Definitions.INFO_FLAG_JAVA_CLIENT;
+            }
+            writeBufferStream.setSerializationTarget(new SerializationInfo(revision, writeEncoding, otherSerializationFlags));
+            readBufferStream.setSerializationSource(new SerializationInfo(revision, javaEncoding, otherDeserializationFlags));
+        }
+
         // set params
-        minUpdateInterval = bulk ? TCPSettings.getInstance().minUpdateIntervalBulk : TCPSettings.getInstance().minUpdateIntervalExpress;
-        maxNotAcknowledgedPackets = bulk ? TCPSettings.getInstance().maxNotAcknowledgedPacketsBulk : TCPSettings.getInstance().maxNotAcknowledgedPacketsExpress;
+        minUpdateInterval = primary ? TCPSettings.getInstance().minUpdateIntervalBulk : TCPSettings.getInstance().minUpdateIntervalExpress;
+        maxNotAcknowledgedPackets = primary ? TCPSettings.getInstance().maxNotAcknowledgedPacketsBulk : TCPSettings.getInstance().maxNotAcknowledgedPacketsExpress;
 
         // Init connection
         readBufferStream.setTimeout(-1);
-        String typeString = bulk ? "Bulk" : "Express";
+        String typeString = primary ? "Primary" : "Express";
 
         // Initialize them here, so that subscribe calls from structure creation do not get lost
         reader = new Reader("TCP Client " + typeString + "-Listener for " + uuid.toString());
         writer = new Writer("TCP Client " + typeString + "-Writer for " + uuid.toString());
 
         // Get framework elements from connection partner
-        if ((connectionFlags & TCP.MANAGEMENT_DATA) != 0) {
-            peer.connectionElement.getModelHandler().changeNodeName(modelNode, "Connecting to " + remotePart.peerInfo.toString() + "...");
+        if ((connectionFlags & TCP.PRIMARY_CONNECTION) != 0) {
+            BufferedModelChanges change = new BufferedModelChanges();
+            change.changeNodeName(modelNode, "Connecting to " + ((RemotePart)remoteRuntime).peerInfo.toString() + "...");
+            getModelHandler().applyModelChanges(change);
+
+
             //ModelNode statusNode = new ModelNode("Obtaining structure information...");
             //peer.connectionElement.getModelHandler().addNode(modelNode, statusNode);
 
             // retrieveRemotePorts(cis, cos, updateTimes, newServer);
-            boolean newServer = true; /*(serverCreationTime < 0) || (serverCreationTime != timeBase);*/
+            //boolean newServer = true; /*(serverCreationTime < 0) || (serverCreationTime != timeBase);*/
             //log(LogLevel.LL_DEBUG, this, (newServer ? "Connecting" : "Reconnecting") + " to server " + uuid.toString() + "...");
 
-            // Delete any elements from previous connections
-            remotePart.deleteAllChildren();
-            remotePart.createNewModel();
+            // Delete any elements from previous connections (no longer necessary)
+            //remoteRuntime.deleteAllChildren();
+            remoteRuntime.createNewModel();
 
             /*portIterator.reset();
             for (ProxyPort pp = portIterator.next(); pp != null; pp = portIterator.next()) {
@@ -263,15 +230,15 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
             try {
                 // Process structure packets
                 int structurePacketSize = readBufferStream.readInt();
-                boolean readType = peer.structureExchange == FrameworkElementInfo.StructureExchange.SHARED_PORTS;
+                boolean readType = peer.structureExchange == Definitions.StructureExchange.SHARED_PORTS;
                 MemoryBuffer structurePacketBuffer = new MemoryBuffer(structurePacketSize);
-                BinaryInputStream structurePacketReadStream = new BinaryInputStream(structurePacketBuffer, remoteTypes);
+                BinaryInputStream structurePacketReadStream = new BinaryInputStream(structurePacketBuffer, readBufferStream);
                 while (structurePacketSize != 0) {
                     structurePacketBuffer.setSize(structurePacketSize);
                     readBufferStream.readFully(structurePacketBuffer.getBuffer(), 0, structurePacketSize);
                     structurePacketReadStream.reset();
                     if (readType) {
-                        DataTypeBase type = structurePacketReadStream.readType();
+                        DataTypeBase type = RemoteType.deserialize(structurePacketReadStream).getDefaultLocalDataType();
                         if (type == null || type != CoreString.TYPE) {
                             Log.log(LogLevel.WARNING, this, "Type encoding does not seem to work");
                             throw new ConnectException("Type encoding does not seem to work");
@@ -279,12 +246,12 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                         readType = false;
                     }
                     while (structurePacketReadStream.moreDataAvailable()) {
-                        tempFrameworkElementInfo.deserialize(structurePacketReadStream, peer.structureExchange);
-                        remotePart.addRemoteStructure(tempFrameworkElementInfo, true);
+                        tempFrameworkElementInfo.deserialize(structurePacketReadStream, true);
+                        remoteRuntime.addRemoteStructure(tempFrameworkElementInfo, true, null);
                     }
                     structurePacketSize = readBufferStream.readInt();
                 }
-                // remotePart.initAndCheckForAdminPort(modelNode); do this later: after bulk connection has been initialized
+                // remoteRuntime.initAndCheckForAdminPort(modelNode); do this later: after bulk connection has been initialized
             } catch (Exception e) {
                 if (e.getCause() instanceof EOFException) {
                     Log.log(LogLevel.DEBUG, "Connection partner '" + uuid.toString() + "' rejected connection (probably not ready yet). Trying again later.");
@@ -292,7 +259,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                     Log.log(LogLevel.DEBUG_WARNING, this, uuid.toString(), e);
                 }
                 //peer.connectionElement.getModelHandler().removeNode(statusNode);
-                remotePart.removeConnection(this);
+                remoteRuntime.removeConnection(this);
                 throw e;
             }
 
@@ -308,28 +275,11 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
         writer.start();
     }
 
-    /**
-     * @return Is TCP connection disconnecting?
-     */
-    public boolean disconnecting() {
-        return disconnectSignal;
-    }
-
-    /**
-     * @return Type of connection ("Bulk" oder "Express")
-     */
-    public String getConnectionTypeString() {
-        return bulk ? "Bulk" : "Express";
-    }
-
-    /**
-     * Close connection
-     */
+    @Override
     public synchronized void disconnect() {
         disconnectSignal = true;
-        RuntimeSettings.getInstance().removeUpdateTimeChangeListener(this);
         synchronized (peer.connectTo) {
-            remotePart.removeConnection(this);
+            remoteRuntime.removeConnection(this);
         }
         notifyWriter(); // stops writer
         //cos = null;
@@ -359,18 +309,6 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
     }
 
     /**
-     * Check that command is terminated correctly when TCPSettings.DEBUG_TCP is activated
-     */
-    static void checkCommandEnd(BinaryInputStream stream) {
-        if (TCPSettings.DEBUG_TCP) {
-            int i = stream.readByte();
-            if (i != TCP.DEBUG_TCP_NUMBER) {
-                throw new RuntimeException("TCP Stream seems corrupt");
-            }
-        }
-    }
-
-    /**
      * Listens at socket for incoming data
      */
     public class Reader extends CoreLoopThreadBase {
@@ -385,9 +323,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
         public void run() {
             initThreadLocalCache();
             BinaryInputStream stream = TCPConnection.this.readBufferStream;
-            MemoryBuffer structureBuffer = new MemoryBuffer(); // structure changes are copied to this buffer and processed by model (thread)
-            BinaryOutputStream structureBufferWriter = new BinaryOutputStream(structureBuffer);
-            byte[] tempBuffer = new byte[2048];
+            BufferedModelChanges modelChanges = new BufferedModelChanges();
 
             try {
                 while (!disconnectSignal) {
@@ -409,22 +345,22 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                         long curTime = System.currentTimeMillis();
                         while (lastAcknowledgedPacket != acknowledgement) {
                             lastAcknowledgedPacket = (lastAcknowledgedPacket + 1) & 0x7FFF;
-                            pingTimes[lastAcknowledgedPacket & TCPSettings.AVG_PING_PACKETS] =
-                                (int)(curTime - sentPacketTime[lastAcknowledgedPacket & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS]);
+                            pingTimes[lastAcknowledgedPacket & Definitions.AVG_PING_PACKETS] =
+                                (int)(curTime - sentPacketTime[lastAcknowledgedPacket & Definitions.MAX_NOT_ACKNOWLEDGED_PACKETS]);
                         }
                         updatePingStatistics();
                     }
 
                     while (stream.getAbsoluteReadPosition() < nextPacketStart) {
-                        TCP.OpCode opCode = stream.readEnum(TCP.OpCode.class);
-                        if (opCode.ordinal() >= TCP.OpCode.OTHER.ordinal()) {
+                        Definitions.OpCode opCode = stream.readEnum(Definitions.OpCode.class);
+                        if (opCode.ordinal() >= Definitions.OpCode.OTHER.ordinal()) {
                             Log.log(LogLevel.WARNING, this, "Received corrupted TCP message batch. Invalid opcode. Skipping.");
                             stream.skip((int)(nextPacketStart - stream.getAbsoluteReadPosition()));
                             break;
                         }
-                        TCP.MessageSize messageSizeEncoding = TCP.MESSAGE_SIZES[opCode.ordinal()];
-                        long messageSize = messageSizeEncoding == TCP.MessageSize.FIXED ? -1 :
-                                           (messageSizeEncoding == TCP.MessageSize.VARIABLE_UP_TO_255_BYTE ? (stream.readByte() & 0xFF) : stream.readInt());
+                        Definitions.MessageSize messageSizeEncoding = Definitions.MESSAGE_SIZES[opCode.ordinal()];
+                        long messageSize = messageSizeEncoding == Definitions.MessageSize.FIXED ? -1 :
+                                           (messageSizeEncoding == Definitions.MessageSize.VARIABLE_UP_TO_255_BYTE ? (stream.readByte() & 0xFF) : stream.readInt());
                         //long messageEncodingSize = messageSizeEncoding.ordinal() * messageSizeEncoding.ordinal(); // :-)
                         long commandStartPosition = stream.getAbsoluteReadPosition();
                         if (messageSize == 0 || (stream.getAbsoluteReadPosition() + messageSize > nextPacketStart)) {
@@ -435,36 +371,44 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                         long nextCommandStartPosition = commandStartPosition + messageSize;
 
                         // Copy to structure buffer?
-                        if (opCode == OpCode.STRUCTURE_CREATE || opCode == OpCode.STRUCTURE_CHANGE || opCode == OpCode.STRUCTURE_DELETE) {
+                        /*if (opCode == Definitions.OpCode.STRUCTURE_CREATED || opCode == Definitions.OpCode.STRUCTURE_CHANGED || opCode == Definitions.OpCode.STRUCTURE_DELETED) {
+                            remoteRuntime.processStructure
+                            // TODO because of register entries this needs to be read now
                             structureBufferWriter.writeEnum(opCode);
-                            long remaining = (opCode == OpCode.STRUCTURE_DELETE) ? (TCPSettings.DEBUG_TCP ? 5 : 4) : messageSize;
+                            long remaining = (opCode == Definitions.OpCode.STRUCTURE_DELETED) ? (TCPSettings.DEBUG_TCP ? 5 : 4) : messageSize;
                             while (remaining > 0) {
                                 long copy = Math.min(tempBuffer.length, remaining);
                                 stream.readFully(tempBuffer, 0, (int)copy);
                                 structureBufferWriter.write(tempBuffer, 0, (int)copy);
                                 remaining -= copy;
                             }
-                        } else {
-                            try {
-                                remotePart.processMessage(opCode, stream, remoteTypes, TCPConnection.this);
-                                checkCommandEnd(stream);
-                            } catch (Exception e) {
-                                Log.log(LogLevel.WARNING, this, "Failed to deserialize message of type " + opCode.toString() + ". Skipping. Reason: ", e);
-                                long skip = nextCommandStartPosition - stream.getAbsoluteReadPosition();
+                        } else {*/
+                        try {
+                            remoteRuntime.processMessage(opCode, stream, TCPConnection.this, modelChanges);
+                            checkCommandEnd(stream);
+                        } catch (Exception e) {
+                            Log.log(LogLevel.WARNING, this, "Failed to deserialize message of type " + opCode.toString() + ". Skipping. Reason: ", e);
+                            long skip = nextCommandStartPosition - stream.getAbsoluteReadPosition();
+                            if (skip >= 0) {
+                                stream.skip((int)skip);
+                            } else {
+                                skip = nextPacketStart - stream.getAbsoluteReadPosition();
                                 if (skip >= 0) {
-                                    stream.skip((int)skip);
+                                    Log.log(LogLevel.WARNING, this, "Too much stream content was read. This is not handled yet. Moving to next message batch."); // TODO
                                 } else {
-                                    skip = nextPacketStart - stream.getAbsoluteReadPosition();
-                                    if (skip >= 0) {
-                                        Log.log(LogLevel.WARNING, this, "Too much stream content was read. This is not handled yet. Moving to next message batch."); // TODO
-                                    } else {
-                                        Log.log(LogLevel.WARNING, this, "Too much stream content was read - exceeding message batch. This is not handled yet. Disconnecting."); // TODO
-                                    }
+                                    Log.log(LogLevel.WARNING, this, "Too much stream content was read - exceeding message batch. This is not handled yet. Disconnecting."); // TODO
                                 }
                             }
+                            //}
                         }
                     }
 
+                    if (!modelChanges.empty()) {
+                        getModelHandler().applyModelChanges(modelChanges);
+                        modelChanges = new BufferedModelChanges();
+                    }
+
+                    /*
                     structureBufferWriter.flush();
                     if (structureBuffer.getSize() > 0) {
                         final MemoryBuffer structureBufferToProcess = structureBuffer;
@@ -474,12 +418,13 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                         peer.connectionElement.getModelHandler().updateModel(new Runnable() {
                             @Override
                             public void run() {
-                                remotePart.processStructurePacket(structureBufferToProcess, remoteTypes);
+                                remoteRuntime.processStructurePacket(structureBufferToProcess, remoteTypes);
                             }
                         });
-                    }
+                    }*/
                 }
             } catch (Exception e) {
+                disconnected = true;
                 if (e instanceof RuntimeException && e.getCause() != null) {
                     e = (Exception)e.getCause();
                 }
@@ -488,7 +433,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                 }
             }
             try {
-                remotePart.disconnect();
+                remoteRuntime.disconnect();
             } catch (Exception e) {
                 Log.log(LogLevel.WARNING, this, e);
             }
@@ -496,6 +441,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
             try {
                 stream.close();
             } catch (Exception e) {}
+            disconnected = true;
         }
 
         @Override
@@ -524,25 +470,11 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
 //        }
 //    }
 
-    /**
-     * Notify (possibly wake-up) writer thread. Should be called whenever new tasks for the writer arrive.
-     */
+    @Override
     public void notifyWriter() {
         Writer lockedWriter = writer;
         if (lockedWriter != null) {
             lockedWriter.notifyWriter();
-        }
-    }
-
-    /** Class to store a pair - call and timeout - in a list */
-    static class CallAndTimeout {
-
-        long timeoutTime;
-        AbstractCall call;
-
-        public CallAndTimeout(long timeoutTime, AbstractCall call) {
-            this.timeoutTime = timeoutTime;
-            this.call = call;
         }
     }
 
@@ -573,7 +505,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
         private final WonderQueue<AbstractCall> callsToSend = new WonderQueue<AbstractCall>();
 
         /** Queue with TCP commands waiting to be sent */
-        private final WonderQueue<SerializedTCPCommand> tcpCallsToSend = new WonderQueue<SerializedTCPCommand>();
+        private final WonderQueue<SerializedMessage> tcpCallsToSend = new WonderQueue<SerializedMessage>();
 
         /** List with calls that were not ready for sending yet */
         private final ArrayList<AbstractCall> notReadyCallsToSend = new ArrayList<AbstractCall>();
@@ -609,7 +541,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
 
         public boolean canSend() {
             int maxNotAck = maxNotAcknowledgedPackets.getValue();
-            return curPacketIndex < lastAcknowledgedPacket + maxNotAck || (maxNotAck <= 0 && curPacketIndex < lastAcknowledgedPacket + TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS);
+            return curPacketIndex < lastAcknowledgedPacket + maxNotAck || (maxNotAck <= 0 && curPacketIndex < lastAcknowledgedPacket + Definitions.MAX_NOT_ACKNOWLEDGED_PACKETS);
         }
 
         @Override
@@ -625,7 +557,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                     //do {
                     if (disconnectSignal) {
                         try {
-                            remotePart.disconnect();
+                            remoteRuntime.disconnect();
                         } catch (Exception e) {
                             Log.log(LogLevel.WARNING, this, e);
                         }
@@ -678,10 +610,10 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                     boolean requestAcknowledgement = startTime >= (lastAcknowledgementRequestTime + 1000);
 
                     // send port data
-                    ArrayWrapper<TCPPort> it = monitoredPorts.getIterable();
+                    ArrayWrapper<RemoteProxyPort> it = monitoredPorts.getIterable();
                     byte changedFlag = 0;
                     for (int i = 0, n = it.size(); i < n; i++) {
-                        TCPPort pp = it.get(i);
+                        RemoteProxyPort pp = it.get(i);
                         if (pp != null && pp.getPort().isReady()) {
                             if (pp.getLastUpdate() + pp.getUpdateIntervalForNet() > startTime) {
 
@@ -736,7 +668,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                         curPacketIndex++;
                         writeBuffer.getBuffer().putShort(4, curPacketIndex & 0x7FFF); // TODO
                         lastAcknowledgementRequestTime = System.currentTimeMillis();
-                        sentPacketTime[curPacketIndex & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS] = lastAcknowledgementRequestTime;
+                        sentPacketTime[curPacketIndex & Definitions.MAX_NOT_ACKNOWLEDGED_PACKETS] = lastAcknowledgementRequestTime;
                     }
 
                     writeBufferToNetwork();
@@ -751,7 +683,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                     }
                 }
             } catch (Exception e) {
-
+                disconnected = true;
                 if (e instanceof RuntimeException && e.getCause() != null) {
                     e = (Exception)e.getCause();
                 }
@@ -760,7 +692,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                 }
 
                 try {
-                    remotePart.disconnect();
+                    remoteRuntime.disconnect();
                 } catch (Exception e2) {
                     Log.log(LogLevel.WARNING, this, e2);
                 }
@@ -769,6 +701,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
             try {
                 stream.close();
             } catch (Exception e) {}
+            disconnected = true;
         }
 
         /**
@@ -845,7 +778,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
                 }
             }
 
-            SerializedTCPCommand tcpCall = null;
+            SerializedMessage tcpCall = null;
             while ((tcpCall = tcpCallsToSend.dequeue()) != null) {
                 tcpCall.serialize(stream);
             }
@@ -873,16 +806,16 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
         private void sendCallImplementation(AbstractCall call, long startTime) {
             boolean expectsResponse = call.expectsResponse();
             if (expectsResponse) {
-                call.setCallId(remotePart.nextCallId.incrementAndGet());
+                call.setCallId(remoteRuntime.getUniqueCallId());
             }
 
-            writeBufferStream.writeEnum(TCP.OpCode.RPC_CALL);
+            writeBufferStream.writeEnum(Definitions.OpCode.RPC_CALL);
             writeBufferStream.writeSkipOffsetPlaceholder();
             writeBufferStream.writeInt(call.getRemotePortHandle());
             writeBufferStream.writeEnum(call.getCallType());
             call.serialize(writeBufferStream);
             if (TCPSettings.DEBUG_TCP) {
-                writeBufferStream.writeByte(TCP.DEBUG_TCP_NUMBER);
+                writeBufferStream.writeByte(Definitions.DEBUG_TCP_NUMBER);
             }
             writeBufferStream.skipTargetHere();
 
@@ -942,105 +875,12 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
          *
          * @param call Call object
          */
-        public void sendCall(SerializedTCPCommand call) {
+        public void sendCall(SerializedMessage call) {
             //call.responsibleThread = -1;
             tcpCallsToSend.enqueue(call);
             notifyWriter();
         }
     }
-
-    /**
-     * Checks whether any waiting calls have timed out.
-     * Removes any timed out calls from list.
-     *
-     * @return Are still calls waiting?
-     */
-    public boolean checkWaitingCallsForTimeout(long timeNow) {
-        synchronized (callsAwaitingResponse) {
-            for (int i = 0; i < callsAwaitingResponse.size(); i++) {
-                if (timeNow > callsAwaitingResponse.get(i).timeoutTime) {
-                    callsAwaitingResponse.get(i).call.setException(FutureStatus.TIMEOUT);
-                    callsAwaitingResponse.remove(i);
-                    i--;
-                }
-            }
-            return callsAwaitingResponse.size() > 0;
-        }
-    }
-
-    /**
-     * Should be called regularly by monitoring thread to check whether critical
-     * ping time threshold is exceeded.
-     *
-     * @return Time the calling thread may wait before calling again (it futile to call this method before)
-     */
-    public long checkPingForDisconnect() {
-        Writer lockedWriter = writer;
-        if (lockedWriter == null) {
-            return TCPSettings.getInstance().criticalPingThreshold.getValue();
-        }
-        if (lastAcknowledgedPacket != lockedWriter.curPacketIndex) {
-            long criticalPacketTime = sentPacketTime[(lastAcknowledgedPacket + 1) & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS];
-            long timeLeft = criticalPacketTime + TCPSettings.getInstance().criticalPingThreshold.getValue() - System.currentTimeMillis();
-            if (timeLeft < 0) {
-                handlePingTimeExceed();
-                return TCPSettings.getInstance().criticalPingThreshold.getValue();
-            }
-            return timeLeft;
-        } else {
-            return TCPSettings.getInstance().criticalPingThreshold.getValue();
-        }
-    }
-
-    /**
-     * Updates ping statistic variables
-     */
-    private void updatePingStatistics() {
-        int result = 0;
-        int resultAvg = 0;
-        for (int i = 0; i < pingTimes.length; i++) {
-            result = Math.max(result, pingTimes[i]);
-            resultAvg += pingTimes[i];
-        }
-        maxPingTime = result;
-        avgPingTime = resultAvg / pingTimes.length;
-    }
-
-    /**
-     * @return Maximum ping time among last TCPSettings.AVG_PING_PACKETS packets
-     */
-    public int getMaxPingTime() {
-        return maxPingTime;
-    }
-
-    /**
-     * @return Average ping time among last TCPSettings.AVG_PING_PACKETS packets
-     */
-    public int getAvgPingTime() {
-        return avgPingTime;
-    }
-
-    /**
-     * @return Is critical ping time currently exceeded (possibly temporary disconnect)
-     */
-    public boolean pingTimeExceeed() {
-        Writer lockedWriter = writer;
-        if (lockedWriter == null) {
-            return false;
-        }
-        if (lastAcknowledgedPacket != lockedWriter.curPacketIndex) {
-            long criticalPacketTime = sentPacketTime[(lastAcknowledgedPacket + 1) & TCPSettings.MAX_NOT_ACKNOWLEDGED_PACKETS];
-            long timeLeft = criticalPacketTime + TCPSettings.getInstance().criticalPingThreshold.getValue() - System.currentTimeMillis();
-            return timeLeft < 0;
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * Called when critical ping time threshold was exceeded
-     */
-    public void handlePingTimeExceed() {} // TODO
 
 //    /**
 //     * Send data chunk. Is called regularly in writer loop whenever changed flag is set.
@@ -1091,11 +931,7 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
 //        return requestAcknowledgement;
 //    }
 
-    /**
-     * Send call to connection partner
-     *
-     * @param call Call object
-     */
+    @Override
     public void sendCall(AbstractCall call) {
         Writer lockedWriter = writer;
         if (lockedWriter != null && (!disconnectSignal)) {
@@ -1105,25 +941,75 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
         }
     }
 
-    /**
-     * Send serialized TCP call to connection partner
-     *
-     * @param call Call object
-     */
-    public void sendCall(SerializedTCPCommand call) {
+    @Override
+    public void sendCall(SerializedMessage call) {
         Writer lockedWriter = writer;
         if (lockedWriter != null && (!disconnectSignal)) {
             lockedWriter.sendCall(call);
         }
     }
 
+    /**
+     * @return Is critical ping time currently exceeded (possibly temporary disconnect)
+     */
     @Override
-    public void updateTimeChanged(DataTypeBase dt, short newUpdateTime) {
-        // forward update time change to connection partner
-        SerializedTCPCommand command = new SerializedTCPCommand(TCP.OpCode.TYPE_UPDATE, 8);
-        command.getWriteStream().writeShort(dt == null ? -1 : dt.getUid());
-        command.getWriteStream().writeShort(newUpdateTime);
-        sendCall(command);
+    public boolean pingTimeExceeed() {
+        Writer lockedWriter = writer;
+        if (lockedWriter == null) {
+            return false;
+        }
+        if (lastAcknowledgedPacket != lockedWriter.curPacketIndex) {
+            long criticalPacketTime = sentPacketTime[(lastAcknowledgedPacket + 1) & Definitions.MAX_NOT_ACKNOWLEDGED_PACKETS];
+            long timeLeft = criticalPacketTime + TCPSettings.getInstance().criticalPingThreshold.getValue() - System.currentTimeMillis();
+            return timeLeft < 0;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Should be called regularly by monitoring thread to check whether critical
+     * ping time threshold is exceeded.
+     *
+     * @return Time the calling thread may wait before calling again (it futile to call this method before)
+     */
+    public long checkPingForDisconnect() {
+        Writer lockedWriter = writer;
+        if (lockedWriter == null) {
+            return TCPSettings.getInstance().criticalPingThreshold.getValue();
+        }
+        if (lastAcknowledgedPacket != lockedWriter.curPacketIndex) {
+            long criticalPacketTime = sentPacketTime[(lastAcknowledgedPacket + 1) & Definitions.MAX_NOT_ACKNOWLEDGED_PACKETS];
+            long timeLeft = criticalPacketTime + TCPSettings.getInstance().criticalPingThreshold.getValue() - System.currentTimeMillis();
+            if (timeLeft < 0) {
+                handlePingTimeExceed();
+                return TCPSettings.getInstance().criticalPingThreshold.getValue();
+            }
+            return timeLeft;
+        } else {
+            return TCPSettings.getInstance().criticalPingThreshold.getValue();
+        }
+    }
+
+    /**
+     * Writes all contents of write buffer to network and empties and resets it
+     */
+    protected void writeBufferToNetwork() throws IOException {
+        writeBufferStream.flush();
+        socketOutputStream.write(writeBuffer.getBuffer().getBuffer().array(), 0, writeBuffer.getSize());
+        writeBufferStream.reset();
+    }
+
+    @Override
+    public ModelHandler getModelHandler() {
+        return peer.connectionElement.getModelHandler();
+    }
+
+    /**
+     * @return Whether connection has been disconnected - or is disconnected
+     */
+    public boolean isDisconnected() {
+        return disconnected;
     }
 
 //    /**
@@ -1239,87 +1125,4 @@ class TCPConnection implements UpdateTimeChangeListener, ResponseSender {
 //        }
 //    }
 
-    /**
-     * @return Data rate of bytes read from network (in bytes/s)
-     */
-    public int getRx() {
-        long lastTime = lastRxTimestamp;
-        long lastPos = lastRxPosition;
-        lastRxTimestamp = Time.getCoarse();
-        lastRxPosition = readBufferStream.getAbsoluteReadPosition();
-        if (lastTime == 0) {
-            return 0;
-        }
-        if (lastRxTimestamp == lastTime) {
-            return 0;
-        }
-
-        double data = lastRxPosition - lastPos;
-        double interval = (lastRxTimestamp - lastTime) / 1000;
-        return (int)(data / interval);
-    }
-
-    public String toString() {
-        return description;
-    }
-
-    /**
-     * Writes all contents of write buffer to network and empties and resets it
-     */
-    protected void writeBufferToNetwork() throws IOException {
-        writeBufferStream.flush();
-        socketOutputStream.write(writeBuffer.getBuffer().getBuffer().array(), 0, writeBuffer.getSize());
-        writeBufferStream.reset();
-    }
-
-    /**
-     * Subscribe to port changes on remote server
-     *
-     * @param index Port index in remote runtime
-     * @param strategy Strategy to use/request
-     * @param updateInterval Minimum interval in ms between notifications (values <= 0 mean: use server defaults)
-     * @param localIndex Local Port Index
-     * @param dataType DataType got from server
-     * @param enc Data type to use when writing data to the network
-     */
-    public void subscribe(int index, short strategy, boolean reversePush, short updateInterval, int localIndex, Serialization.DataEncoding enc) {
-        SerializedTCPCommand command = new SerializedTCPCommand(TCP.OpCode.SUBSCRIBE, 16);
-        command.getWriteStream().writeInt(index);
-        command.getWriteStream().writeShort(strategy);
-        command.getWriteStream().writeBoolean(reversePush);
-        command.getWriteStream().writeShort(updateInterval);
-        command.getWriteStream().writeInt(localIndex);
-        command.getWriteStream().writeEnum(enc);
-        sendCall(command);
-    }
-
-    /**
-     * Unsubscribe from port changes on remote server
-     *
-     * @param index Port index in remote runtime
-     */
-    public void unsubscribe(int index) {
-        SerializedTCPCommand command = new SerializedTCPCommand(TCP.OpCode.UNSUBSCRIBE, 8);
-        command.getWriteStream().writeInt(index);
-        sendCall(command);
-    }
-
-    /**
-     * @param portIndex Index of port
-     * @return TCPPort for specified index
-     */
-    protected TCPPort lookupPortForCallHandling(int portIndex) {
-        AbstractPort ap = RuntimeEnvironment.getInstance().getPort(portIndex);
-        TCPPort p = null;
-        if (ap != null) {
-            p = (TCPPort)ap.asNetPort();
-            assert(p != null);
-        }
-        return p;
-    }
-
-    @Override
-    public void sendResponse(AbstractCall responseToSend) {
-        sendCall(responseToSend);
-    }
 }

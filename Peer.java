@@ -21,8 +21,8 @@
 //----------------------------------------------------------------------
 package org.finroc.plugins.tcp;
 
-import org.finroc.core.datatype.FrameworkElementInfo;
 import org.finroc.core.plugin.ExternalConnection;
+import org.finroc.core.remote.Definitions;
 import org.finroc.plugins.tcp.internal.TCP;
 import org.finroc.plugins.tcp.internal.TCPPeer;
 import org.rrlib.logging.Log;
@@ -57,7 +57,7 @@ public class Peer extends ExternalConnection {
         if (serverListenAddress == null) {
             serverListenAddress = "0.0.0.0";
         }
-        implementation = new TCPPeer(this, peerName, TCP.PeerType.FULL, FrameworkElementInfo.StructureExchange.SHARED_PORTS, networkConnection,
+        implementation = new TCPPeer(this, peerName, TCP.PeerType.FULL, Definitions.StructureExchange.SHARED_PORTS, networkConnection,
                                      preferredServerPort, tryNextPortsIfOccupied, autoConnectToAllPeers, serverListenAddress);
     }
 
@@ -74,7 +74,7 @@ public class Peer extends ExternalConnection {
         if (serverListenAddress == null) {
             serverListenAddress = "0.0.0.0";
         }
-        implementation = new TCPPeer(this, peerName, TCP.PeerType.SERVER_ONLY, FrameworkElementInfo.StructureExchange.SHARED_PORTS, "",
+        implementation = new TCPPeer(this, peerName, TCP.PeerType.SERVER_ONLY, Definitions.StructureExchange.SHARED_PORTS, "",
                                      preferredServerPort, tryNextPortsIfOccupied, false, serverListenAddress);
     }
 
@@ -86,7 +86,7 @@ public class Peer extends ExternalConnection {
      * @param structureExchange Amount of structure the client is interested in
      * @param autoConnectToAllPeers Auto-connect to all peers that become known?
      */
-    public Peer(String peerName, String networkConnection, FrameworkElementInfo.StructureExchange structureExchange, boolean autoConnectToAllPeers) {
+    public Peer(String peerName, String networkConnection, Definitions.StructureExchange structureExchange, boolean autoConnectToAllPeers) {
         super("TCP", networkConnection);
         implementation = new TCPPeer(this, peerName, TCP.PeerType.CLIENT_ONLY, structureExchange, networkConnection, -1, false, autoConnectToAllPeers, "");
     }
