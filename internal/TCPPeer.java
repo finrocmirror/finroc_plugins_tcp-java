@@ -21,6 +21,7 @@
 //----------------------------------------------------------------------
 package org.finroc.plugins.tcp.internal;
 
+import java.io.EOFException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.InetAddress;
@@ -745,7 +746,9 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                 BufferedModelChanges changes = new BufferedModelChanges();
                 changes.changeNodeName(modelNode, "Looking for " + TCP.formatInetSocketAddress(connectTo) + "...");
                 connectionElement.getModelHandler().applyModelChanges(changes);
-                e.printStackTrace();
+                if (!(e instanceof ConnectException || e instanceof EOFException)) {
+                    e.printStackTrace();
+                }
                 socket.close();
                 // simply try again
             }
