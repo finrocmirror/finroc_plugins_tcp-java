@@ -86,6 +86,8 @@ public class RemotePart extends RemoteRuntime {
                 getExpressConnection().disconnect();
             }
             disconnectCalls.set(0);
+            peerInfo.remotePart = null;
+            this.managedDelete();
         }
     }
 
