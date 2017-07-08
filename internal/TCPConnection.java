@@ -403,6 +403,7 @@ public class TCPConnection extends Connection {
                     }
 
                     if (!modelChanges.empty()) {
+                        modelChanges.initializeUnitializedPorts(remoteRuntime);
                         getModelHandler().applyModelChanges(modelChanges);
                         modelChanges = new BufferedModelChanges();
                     }

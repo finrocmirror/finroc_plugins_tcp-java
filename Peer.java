@@ -53,7 +53,7 @@ public class Peer extends ExternalConnection {
      * @param serverListenAddress The address that server is supposed to listen on ("" will enable IPv6)
      */
     public Peer(String peerName, String networkConnection, int preferredServerPort, boolean tryNextPortsIfOccupied, boolean autoConnectToAllPeers, String serverListenAddress) {
-        super("TCP", networkConnection);
+        super("tcp", networkConnection);
         if (serverListenAddress == null) {
             serverListenAddress = "0.0.0.0";
         }
@@ -70,7 +70,7 @@ public class Peer extends ExternalConnection {
      * @param serverListenAddress The address that server is supposed to listen on ("" will enable IPv6)
      */
     public Peer(String peerName, int preferredServerPort, boolean tryNextPortsIfOccupied, String serverListenAddress) {
-        super("TCP", "127.0.0.1");
+        super("tcp", "127.0.0.1");
         if (serverListenAddress == null) {
             serverListenAddress = "0.0.0.0";
         }
@@ -87,7 +87,7 @@ public class Peer extends ExternalConnection {
      * @param autoConnectToAllPeers Auto-connect to all peers that become known?
      */
     public Peer(String peerName, String networkConnection, Definitions.StructureExchange structureExchange, boolean autoConnectToAllPeers) {
-        super("TCP", networkConnection);
+        super("tcp", networkConnection);
         implementation = new TCPPeer(this, peerName, TCP.PeerType.CLIENT_ONLY, structureExchange, networkConnection, -1, false, autoConnectToAllPeers, "");
     }
 
