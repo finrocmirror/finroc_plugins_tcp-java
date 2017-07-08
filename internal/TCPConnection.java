@@ -42,7 +42,6 @@ import org.rrlib.serialization.BinaryOutputStream;
 import org.rrlib.serialization.InputStreamSource;
 import org.rrlib.serialization.MemoryBuffer;
 import org.rrlib.serialization.SerializationInfo;
-import org.rrlib.serialization.rtti.DataTypeBase;
 
 import org.finroc.core.datatype.CoreString;
 import org.finroc.core.net.generic_protocol.Connection;
@@ -238,8 +237,8 @@ public class TCPConnection extends Connection {
                     readBufferStream.readFully(structurePacketBuffer.getBuffer(), 0, structurePacketSize);
                     structurePacketReadStream.reset();
                     if (readType) {
-                        DataTypeBase type = RemoteType.deserialize(structurePacketReadStream).getDefaultLocalDataType();
-                        if (type == null || type != CoreString.TYPE) {
+                        RemoteType type = RemoteType.deserialize(structurePacketReadStream);
+                        if (type == null || (!type.getName().equals(CoreString.TYPE.getName()))) {
                             Log.log(LogLevel.WARNING, this, "Type encoding does not seem to work");
                             throw new ConnectException("Type encoding does not seem to work");
                         }
