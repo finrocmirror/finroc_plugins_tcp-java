@@ -277,9 +277,6 @@ public class TCPConnection extends Connection {
     @Override
     public synchronized void disconnect() {
         disconnectSignal = true;
-        synchronized (peer.connectTo) {
-            remoteRuntime.removeConnection(this);
-        }
         notifyWriter(); // stops writer
         //cos = null;
         try {
@@ -304,6 +301,10 @@ public class TCPConnection extends Connection {
             } catch (InterruptedException e) {
                 Log.log(LogLevel.WARNING, this, "warning: TCPConnection::disconnect() - Interrupted waiting for reader thread.");
             }
+        }
+
+        synchronized (peer.connectTo) {
+            remoteRuntime.removeConnection(this);
         }
     }
 
