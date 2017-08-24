@@ -742,6 +742,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                 peerInfo = findPeerInfoFor(connectTo);
                 if (peerInfo != null && peerInfo.remotePart != null) {
                     peerInfo.remotePart.deleteAllChildren();
+                    peerInfo.remotePart = null;
                 }
                 BufferedModelChanges changes = new BufferedModelChanges();
                 changes.changeNodeName(modelNode, "Looking for " + TCP.formatInetSocketAddress(connectTo) + "...");
@@ -838,6 +839,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
 
                     if (peer.remotePart != null) {
                         peer.remotePart.deleteAllChildren();
+                        peer.remotePart = null;
                     }
                     BufferedModelChanges changes = new BufferedModelChanges();
                     changes.changeNodeName(modelNode, "Looking for " + peer.uuid.toString() + "...");
