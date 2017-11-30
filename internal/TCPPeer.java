@@ -741,7 +741,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                 }
                 peerInfo = findPeerInfoFor(connectTo);
                 if (peerInfo != null && peerInfo.remotePart != null) {
-                    peerInfo.remotePart.deleteAllChildren();
+                    peerInfo.remotePart.managedDelete();
                     peerInfo.remotePart = null;
                 }
                 BufferedModelChanges changes = new BufferedModelChanges();
@@ -838,7 +838,7 @@ public class TCPPeer { /*implements AbstractPeerTracker.Listener*/
                     }
 
                     if (peer.remotePart != null) {
-                        peer.remotePart.deleteAllChildren();
+                        peer.remotePart.managedDelete();
                         peer.remotePart = null;
                     }
                     BufferedModelChanges changes = new BufferedModelChanges();
